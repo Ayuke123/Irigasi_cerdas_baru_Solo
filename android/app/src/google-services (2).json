@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "377298373628",
+    "project_id": "irigasi-cerdas-baru",
+    "storage_bucket": "irigasi-cerdas-baru.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:377298373628:android:7d3d3ba00936ade220c079",
+        "android_client_info": {
+          "package_name": "com.example.irigasi_cerdas_baru"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBgPPFeYDUs-N6CU9WqZi0UGj8zOsLPVjo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

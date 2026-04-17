@@ -1,0 +1,27 @@
+name: irigasi_cerdas_baru
+description: Aplikasi Irigasi Cerdas
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^2.21.0
+  firebase_auth: ^4.6.3
+  firebase_messaging: ^14.0.0 
+  cloud_firestore: ^4.13.0
+  http: ^1.2.1
+  firebase_database: ^10.5.7
+  intl: ^0.20.2
+   
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
