@@ -43,8 +43,16 @@ class _CuacaPageState extends State<CuacaPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: const Text('Cuaca'),
+        title: const Text(
+          'Cuaca',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: false, // rata kiri
         backgroundColor: const Color.fromARGB(255, 250, 250, 251),
+        foregroundColor: Colors.black, // biar teks jelas
+        elevation: 0,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),

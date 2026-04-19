@@ -1,182 +1,112 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:intl/intl.dart';
+import 'package:firebase_core/firebase_core.dart';
 
-class HistoryPage extends StatefulWidget {
-  const HistoryPage({super.key});
+class RiwayatPage extends StatefulWidget {
+  const RiwayatPage({super.key});
 
   @override
-  State<HistoryPage> createState() => _HistoryPageState();
+  State<RiwayatPage> createState() => _RiwayatPageState();
 }
 
-class _HistoryPageState extends State<HistoryPage> {
-  final DatabaseReference dbRef =
-      FirebaseDatabase.instance.ref().child('history');
-
-  List<Map<String, dynamic>> historyList = [];
+class _RiwayatPageState extends State<RiwayatPage> {
+  final DatabaseReference _database = FirebaseDatabase.instanceFor(
+    app: Firebase.app(),
+    databaseURL:
+        "https://irigasi-cerdas-baru-default-rtdb.asia-southeast1.firebasedatabase.app",
+  ).ref('history');
+  List<Map<String, dynamic>> riwayatList = [];
 
   @override
   void initState() {
     super.initState();
-    getData();
+    _listenRiwayat();
   }
 
-  void getData() {
-    dbRef.onValue.listen((event) {
+  // 🔥 REALTIME LISTENER
+  void _listenRiwayat() {
+    _database.onValue.listen((event) {
+      print("🔥 LISTENER RIWAYAT AKTIF");
+      print("DATA MASUK: ${event.snapshot.value}");
+
       final data = event.snapshot.value;
 
-      if (data != null && data is Map) {
-        final Map<dynamic, dynamic> map = data;
+      if (data != null) {
+        final rawData = data as Map<dynamic, dynamic>;
 
-        List<Map<String, dynamic>> tempList = [];
+        List<Map<String, dynamic>> loadedData = [];
 
-        map.forEach((key, value) {
-          if (value is Map) {
-            final item = Map<dynamic, dynamic>.from(value);
+        rawData.forEach((key, value) {
+          if (value != null) {
+            final item = value as Map<dynamic, dynamic>;
 
-            tempList.add({
-              "status": item["status"] ?? "-",
-              "nilai": item["nilai_persen"] ?? 0,
-              "waktu": item["waktu"] ?? "-",
+            loadedData.add({
+              'tanggal': item['waktu']?.toString() ?? '-',
+              'kelembaban': int.tryParse("${item['nilai_persen']}") ?? 0,
+              'status': item['status']?.toString() ?? '-',
             });
           }
         });
 
         setState(() {
-          historyList = tempList.reversed.toList();
+          riwayatList = loadedData.reversed.toList();
         });
       }
     });
   }
 
-  // 🔥 CEK HARI INI
-  bool isToday(DateTime date) {
-    final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
-  }
-
-  // 🔥 FORMAT TANGGAL
-  String formatDate(DateTime date) {
-    return DateFormat('dd MMMM yyyy').format(date);
-  }
-
   @override
   Widget build(BuildContext context) {
-    Map<String, List<Map<String, dynamic>>> groupedData = {};
-
-    for (var item in historyList) {
-      try {
-        DateTime date = DateTime.parse(item['waktu']);
-
-        String key = isToday(date) ? "Hari ini" : formatDate(date);
-
-        if (!groupedData.containsKey(key)) {
-          groupedData[key] = [];
-        }
-
-        groupedData[key]!.add(item);
-      } catch (e) {
-        print("Error parsing date: $e");
-      }
-    }
-
     return Scaffold(
-      backgroundColor: const Color(0xffF7F7F7),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 🔥 HEADER
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: const [
-                  Icon(Icons.edit_note, size: 28),
-                  SizedBox(width: 10),
-                  Text(
-                    "Riwayat Penyiraman",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+      appBar: AppBar(
+        title: const Padding(
+          padding: EdgeInsets.only(left: 8),
+          child: Text(
+            'Riwayat Penyiraman',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
             ),
-
-            // 🔥 LIST
-            Expanded(
-              child: historyList.isEmpty
-                  ? const Center(child: Text("Belum ada data"))
-                  : ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      children: groupedData.entries.map((entry) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 🔥 JUDUL TANGGAL
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              child: Text(
-                                entry.key,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-
-                            // 🔥 LIST CARD
-                            ...entry.value.map((item) {
-                              return Container(
-                                margin: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 14),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.08),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item['waktu'],
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      "Status: ${item['status']} • ${item['nilai']}%",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: item['status'] == "Kering"
-                                            ? Colors.red
-                                            : Colors.green,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-            ),
-          ],
+          ),
         ),
+        centerTitle: false,
+        backgroundColor: const Color(0xFF1E88E5),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: riwayatList.isEmpty
+            ? const Center(child: Text("Belum ada data"))
+            : ListView.builder(
+                itemCount: riwayatList.length,
+                itemBuilder: (context, index) {
+                  final item = riwayatList[index];
+
+                  return Card(
+                    elevation: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(Icons.history),
+                      title: Text(item['tanggal']),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Kelembaban: ${item['kelembaban']}%'),
+                          Text(
+                            'Status: ${item['status']}',
+                            style: TextStyle(
+                              color: item['status'] == "Kering"
+                                  ? Colors.red
+                                  : Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
       ),
     );
   }

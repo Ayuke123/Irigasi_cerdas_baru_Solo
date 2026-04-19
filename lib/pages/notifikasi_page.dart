@@ -10,8 +10,13 @@ class NotifikasiPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifikasi'),
-        centerTitle: true,
+        title: const Text(
+          'Notifikasi',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: false, // biar ke kiri
       ),
       body: StreamBuilder<DatabaseEvent>(
         stream: notifRef.onValue,

@@ -146,11 +146,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 246, 244, 244),
       appBar: AppBar(
-        title: const Text('Profil Pengguna'),
+        title: const Text(
+          'Profil Pengguna',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: false,
         backgroundColor: const Color.fromARGB(255, 243, 245, 246),
+        foregroundColor: Colors.black,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.settings),
-          onPressed: showSettingsBottomSheet, // Show settings bottom sheet
+          onPressed: showSettingsBottomSheet,
         ),
       ),
       body: Padding(
