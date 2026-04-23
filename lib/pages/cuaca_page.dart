@@ -38,6 +38,25 @@ class _CuacaPageState extends State<CuacaPage> {
     return WeatherService().getWeatherByAddress(alamat);
   }
 
+  // =========================
+  // FIX: FILTER 1 HARI 1 DATA
+  // =========================
+  List<ForecastData> _getDailyForecast(List<ForecastData> forecast) {
+    final Map<String, ForecastData> dailyMap = {};
+
+    for (var item in forecast) {
+      final dateKey =
+          "${item.dateTime.year}-${item.dateTime.month}-${item.dateTime.day}";
+
+      // Ambil data jam 12 siang biar lebih konsisten
+      if (item.dateTime.hour == 12 && !dailyMap.containsKey(dateKey)) {
+        dailyMap[dateKey] = item;
+      }
+    }
+
+    return dailyMap.values.take(7).toList(); // 🔥 jadi 7 hari
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -45,13 +64,10 @@ class _CuacaPageState extends State<CuacaPage> {
       appBar: AppBar(
         title: const Text(
           'Cuaca',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        centerTitle: false, // rata kiri
         backgroundColor: const Color.fromARGB(255, 250, 250, 251),
-        foregroundColor: Colors.black, // biar teks jelas
+        foregroundColor: Colors.black,
         elevation: 0,
       ),
       body: Padding(
@@ -69,7 +85,9 @@ class _CuacaPageState extends State<CuacaPage> {
 
             final data = snapshot.data!;
             final current = data.current;
-            final forecast = data.next3Days;
+
+            // 🔥 FIX DI SINI
+            final forecast = _getDailyForecast(data.next3Days);
 
             return SingleChildScrollView(
               child: Column(
@@ -95,7 +113,6 @@ class _CuacaPageState extends State<CuacaPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Header
                         Row(
                           children: [
                             const Icon(Icons.cloud, color: Colors.white),
@@ -109,10 +126,7 @@ class _CuacaPageState extends State<CuacaPage> {
                             ),
                           ],
                         ),
-
                         const SizedBox(height: 12),
-
-                        // LOKASI
                         Text(
                           current.cityName,
                           style: const TextStyle(
@@ -120,10 +134,7 @@ class _CuacaPageState extends State<CuacaPage> {
                             color: Colors.white70,
                           ),
                         ),
-
                         const SizedBox(height: 12),
-
-                        // SUHU
                         Center(
                           child: Text(
                             '${current.temperature.toStringAsFixed(0)}°C',
@@ -134,10 +145,7 @@ class _CuacaPageState extends State<CuacaPage> {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 6),
-
-                        // DESKRIPSI
                         Center(
                           child: Text(
                             current.description,
@@ -153,13 +161,10 @@ class _CuacaPageState extends State<CuacaPage> {
 
                   const SizedBox(height: 24),
 
-                  // =========================
-                  // PERKIRAAN 3 HARI
-                  // =========================
                   const Text(
                     'Perkiraan Cuaca',
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),
                   ),
@@ -252,30 +257,16 @@ class _CuacaPageState extends State<CuacaPage> {
   }
 
   String _dayLabel(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year);
-    final tomorrow = today.add(const Duration(days: 1));
-    final dayAfterTomorrow = today.add(const Duration(days: 2));
-    final threeDaysLater = today.add(const Duration(days: 3));
-
-    final target = DateTime(date.year, date.month, date.day);
-
-    // Menampilkan "Besok", "Lusa", "3 Hari" sesuai hari yang benar
-    if (target == tomorrow) return 'Besok';
-    if (target == dayAfterTomorrow) return 'Lusa';
-    if (target == threeDaysLater) return '3 Hari';
-
-    // Menampilkan nama hari secara lengkap setelah hari besok dan lusa
     final dayNames = [
-      'Minggu',
       'Senin',
       'Selasa',
       'Rabu',
       'Kamis',
       'Jumat',
-      'Sabtu'
+      'Sabtu',
+      'Minggu'
     ];
-    return dayNames[target.weekday %
-        7]; // Menggunakan weekday untuk mengambil nama hari yang benar
+
+    return dayNames[date.weekday - 1];
   }
 }

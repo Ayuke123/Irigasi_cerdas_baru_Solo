@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -10,12 +11,17 @@ class RiwayatPage extends StatefulWidget {
 }
 
 class _RiwayatPageState extends State<RiwayatPage> {
-  final DatabaseReference _database = FirebaseDatabase.instanceFor(
+  // 1. Inisialisasi StreamSubscription untuk menghindari memory leak
+  StreamSubscription? _subscription;
+  List<Map<String, dynamic>> riwayatList = [];
+  bool _isLoading = true;
+
+  // 2. Referensi Database dengan Query (Urutkan berdasarkan Key dan ambil 50 data terakhir)
+  final Query _historyQuery = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
     databaseURL:
         "https://irigasi-cerdas-baru-default-rtdb.asia-southeast1.firebasedatabase.app",
-  ).ref('history');
-  List<Map<String, dynamic>> riwayatList = [];
+  ).ref('history').orderByKey().limitToLast(50);
 
   @override
   void initState() {
@@ -23,24 +29,28 @@ class _RiwayatPageState extends State<RiwayatPage> {
     _listenRiwayat();
   }
 
+  @override
+  void dispose() {
+    // 3. Batalkan listener saat halaman ditutup
+    _subscription?.cancel();
+    super.dispose();
+  }
+
   // 🔥 REALTIME LISTENER
   void _listenRiwayat() {
-    _database.onValue.listen((event) {
-      print("🔥 LISTENER RIWAYAT AKTIF");
-      print("DATA MASUK: ${event.snapshot.value}");
-
+    _subscription = _historyQuery.onValue.listen((event) {
       final data = event.snapshot.value;
+      List<Map<String, dynamic>> loadedData = [];
 
       if (data != null) {
         final rawData = data as Map<dynamic, dynamic>;
-
-        List<Map<String, dynamic>> loadedData = [];
 
         rawData.forEach((key, value) {
           if (value != null) {
             final item = value as Map<dynamic, dynamic>;
 
             loadedData.add({
+              'id': key,
               'tanggal': item['waktu']?.toString() ?? '-',
               'kelembaban': int.tryParse("${item['nilai_persen']}") ?? 0,
               'status': item['status']?.toString() ?? '-',
@@ -48,10 +58,22 @@ class _RiwayatPageState extends State<RiwayatPage> {
           }
         });
 
+        // 4. Urutkan dari yang terbaru ke terlama
+        // Karena kita ambil limitToLast, data terbaru ada di bagian bawah List,
+        // maka kita balik (reverse) agar yang terbaru muncul di paling atas layar.
         setState(() {
           riwayatList = loadedData.reversed.toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          riwayatList = [];
+          _isLoading = false;
         });
       }
+    }, onError: (error) {
+      print("Error Database: $error");
+      setState(() => _isLoading = false);
     });
   }
 
@@ -59,54 +81,96 @@ class _RiwayatPageState extends State<RiwayatPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Padding(
-          padding: EdgeInsets.only(left: 8),
-          child: Text(
-            'Riwayat Penyiraman',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
+        title: const Text(
+          'Riwayat Penyiraman',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
           ),
         ),
-        centerTitle: false,
-        backgroundColor: const Color(0xFF1E88E5),
+        backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+        elevation: 0,
+        centerTitle: false, // 🔥 ini bikin ke kiri
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: riwayatList.isEmpty
-            ? const Center(child: Text("Belum ada data"))
-            : ListView.builder(
-                itemCount: riwayatList.length,
-                itemBuilder: (context, index) {
-                  final item = riwayatList[index];
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator()) // Loading indicator
+          : Padding(
+              padding: const EdgeInsets.all(16),
+              child: riwayatList.isEmpty
+                  ? _buildEmptyState()
+                  : ListView.builder(
+                      itemCount: riwayatList.length,
+                      itemBuilder: (context, index) {
+                        final item = riwayatList[index];
+                        return _buildHistoryCard(item);
+                      },
+                    ),
+            ),
+    );
+  }
 
-                  return Card(
-                    elevation: 4,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ListTile(
-                      leading: const Icon(Icons.history),
-                      title: Text(item['tanggal']),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Kelembaban: ${item['kelembaban']}%'),
-                          Text(
-                            'Status: ${item['status']}',
-                            style: TextStyle(
-                              color: item['status'] == "Kering"
-                                  ? Colors.red
-                                  : Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+  // Widget untuk tampilan kartu riwayat
+  Widget _buildHistoryCard(Map<String, dynamic> item) {
+    bool isKering = item['status'] == "Kering";
+
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: isKering ? Colors.red.shade50 : Colors.green.shade50,
+          child: Icon(
+            isKering ? Icons.water_drop_outlined : Icons.check_circle_outline,
+            color: isKering ? Colors.red : Colors.green,
+          ),
+        ),
+        title: Text(
+          item['tanggal'],
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Kelembaban: ${item['kelembaban']}%'),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isKering ? Colors.red : Colors.green,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  item['status'],
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Widget jika data kosong
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          Icon(Icons.history_toggle_off, size: 80, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            "Belum ada riwayat aktivitas",
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+          ),
+        ],
       ),
     );
   }

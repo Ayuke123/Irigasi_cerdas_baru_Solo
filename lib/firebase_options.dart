@@ -58,6 +58,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '377298373628',
     projectId: 'irigasi-cerdas-baru',
     storageBucket: 'irigasi-cerdas-baru.firebasestorage.app',
+    databaseURL:
+        'https://irigasi-cerdas-baru-default-rtdb.asia-southeast1.firebasedatabase.app',
   );
-
 }

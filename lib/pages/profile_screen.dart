@@ -168,7 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Avatar Profile
             CircleAvatar(
               radius: 60,
-              backgroundColor: Colors.blueAccent,
+              backgroundColor: const Color.fromARGB(255, 231, 236, 244),
               child: Icon(
                 Icons.person,
                 size: 80,
@@ -246,7 +246,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 child: const Text(
                   "KELUAR",
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
                 ),
               ),
             ),

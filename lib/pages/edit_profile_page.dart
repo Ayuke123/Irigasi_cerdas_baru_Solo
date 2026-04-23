@@ -77,40 +77,115 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Profil')),
-      body: Padding(
+      backgroundColor: const Color(0xffF5F7FB),
+      appBar: AppBar(
+        title: const Text(
+          'Edit Profil',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Edit email
-            TextField(
-              controller: emailController,
-              decoration: const InputDecoration(labelText: 'Email'),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 16),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Informasi Akun",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
 
-            // Edit phone number
-            TextField(
-              controller: phoneController,
-              decoration: const InputDecoration(labelText: 'Nomor Telepon'),
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 16),
+              // EMAIL
+              TextField(
+                controller: emailController,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: const Icon(Icons.email),
+                  filled: true,
+                  fillColor: const Color(0xffF1F4F9),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
 
-            // Edit address
-            TextField(
-              controller: alamatController,
-              decoration: const InputDecoration(labelText: 'Alamat'),
-            ),
-            const SizedBox(height: 20),
+              // PHONE
+              TextField(
+                controller: phoneController,
+                decoration: InputDecoration(
+                  labelText: 'Nomor Telepon',
+                  prefixIcon: const Icon(Icons.phone),
+                  filled: true,
+                  fillColor: const Color(0xffF1F4F9),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
 
-            // Save button
-            ElevatedButton(
-              onPressed: update,
-              child: const Text("Simpan"),
-            ),
-          ],
+              // ALAMAT
+              TextField(
+                controller: alamatController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Alamat',
+                  prefixIcon: const Icon(Icons.location_on),
+                  filled: true,
+                  fillColor: const Color(0xffF1F4F9),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              // BUTTON
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: update,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color.fromARGB(255, 90, 158, 227),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    "Simpan Perubahan",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
