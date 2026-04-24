@@ -17,6 +17,7 @@ dependencies:
   firebase_database: ^10.5.7
   intl: ^0.20.2
   flutter_local_notifications: ^17.0.0
+  fl_chart: ^0.68.0
    
 
 dev_dependencies:
