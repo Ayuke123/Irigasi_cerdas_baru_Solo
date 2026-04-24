@@ -36,41 +36,35 @@ class _RiwayatPageState extends State<RiwayatPage> {
     super.dispose();
   }
 
-  // 🔥 REALTIME LISTENER
   void _listenRiwayat() {
     _subscription = _historyQuery.onValue.listen((event) {
-      final data = event.snapshot.value;
-      List<Map<String, dynamic>> loadedData = [];
-
-      if (data != null) {
-        final rawData = data as Map<dynamic, dynamic>;
-
-        rawData.forEach((key, value) {
-          if (value != null) {
-            final item = value as Map<dynamic, dynamic>;
-
-            loadedData.add({
-              'id': key,
-              'tanggal': item['waktu']?.toString() ?? '-',
-              'kelembaban': int.tryParse("${item['nilai_persen']}") ?? 0,
-              'status': item['status']?.toString() ?? '-',
-            });
-          }
-        });
-
-        // 4. Urutkan dari yang terbaru ke terlama
-        // Karena kita ambil limitToLast, data terbaru ada di bagian bawah List,
-        // maka kita balik (reverse) agar yang terbaru muncul di paling atas layar.
-        setState(() {
-          riwayatList = loadedData.reversed.toList();
-          _isLoading = false;
-        });
-      } else {
+      if (!event.snapshot.exists) {
         setState(() {
           riwayatList = [];
           _isLoading = false;
         });
+        return;
       }
+
+      List<Map<String, dynamic>> loadedData = [];
+
+      // Menggunakan children untuk menjaga urutan yang diberikan oleh query limitToLast
+      for (var child in event.snapshot.children) {
+        final data = child.value as Map<dynamic, dynamic>;
+        loadedData.add({
+          'id': child.key,
+          'tanggal': data['waktu']?.toString() ?? '-',
+          'kelembaban': int.tryParse("${data['nilai_persen']}") ?? 0,
+          'status': data['status']?.toString() ?? '-',
+        });
+      }
+
+      setState(() {
+        // Karena limitToLast(50), data terbaru ada di akhir list children.
+        // Kita balik (reverse) agar yang paling baru muncul di atas.
+        riwayatList = loadedData.reversed.toList();
+        _isLoading = false;
+      });
     }, onError: (error) {
       print("Error Database: $error");
       setState(() => _isLoading = false);
