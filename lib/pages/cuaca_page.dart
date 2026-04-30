@@ -38,9 +38,6 @@ class _CuacaPageState extends State<CuacaPage> {
     return WeatherService().getWeatherByAddress(alamat);
   }
 
-  // =========================
-  // FIX: FILTER 1 HARI 1 DATA
-  // =========================
   List<ForecastData> _getDailyForecast(List<ForecastData> forecast) {
     final Map<String, ForecastData> dailyMap = {};
 
@@ -48,193 +45,184 @@ class _CuacaPageState extends State<CuacaPage> {
       final dateKey =
           "${item.dateTime.year}-${item.dateTime.month}-${item.dateTime.day}";
 
-      // Ambil data jam 12 siang biar lebih konsisten
       if (item.dateTime.hour == 12 && !dailyMap.containsKey(dateKey)) {
         dailyMap[dateKey] = item;
       }
     }
 
-    return dailyMap.values.take(7).toList(); // 🔥 jadi 7 hari
+    return dailyMap.values.take(7).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: Colors.white, // 🔥 background putih
+
       appBar: AppBar(
         title: const Text(
           'Cuaca',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: const Color.fromARGB(255, 250, 250, 251),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: FutureBuilder<WeatherResult>(
-          future: weatherFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
 
-            if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            }
+      body: Container(
+        color: Colors.white, // 🔥 body putih
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: FutureBuilder<WeatherResult>(
+            future: weatherFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              }
 
-            final data = snapshot.data!;
-            final current = data.current;
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text('Error: ${snapshot.error}'),
+                );
+              }
 
-            // 🔥 FIX DI SINI
-            final forecast = _getDailyForecast(data.next3Days);
+              final data = snapshot.data!;
+              final current = data.current;
+              final forecast = _getDailyForecast(data.next3Days);
 
-            return SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // =========================
-                  // CARD CUACA UTAMA
-                  // =========================
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[300],
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.cloud, color: Colors.white),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Cuaca Saat Ini',
-                              style: TextStyle(
+              return SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[300],
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(
+                                Icons.cloud,
                                 color: Colors.white,
-                                fontWeight: FontWeight.w500,
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          current.cityName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.white70,
+                              SizedBox(width: 8),
+                              Text(
+                                'Cuaca Saat Ini',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        Center(
-                          child: Text(
-                            '${current.temperature.toStringAsFixed(0)}°C',
-                            style: const TextStyle(
-                              fontSize: 48,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Center(
-                          child: Text(
-                            current.description,
+                          const SizedBox(height: 12),
+                          Text(
+                            current.cityName,
                             style: const TextStyle(
                               fontSize: 16,
                               color: Colors.white70,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  const Text(
-                    'Perkiraan Cuaca',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  SizedBox(
-                    height: 150,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: forecast.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (context, index) {
-                        final item = forecast[index];
-
-                        return Container(
-                          width: 110,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(15),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              '${current.temperature.toStringAsFixed(0)}°C',
+                              style: const TextStyle(
+                                fontSize: 48,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
                               ),
-                            ],
+                            ),
                           ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                _dayLabel(item.dateTime),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                          const SizedBox(height: 6),
+                          Center(
+                            child: Text(
+                              current.description,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.white70,
                               ),
-                              const SizedBox(height: 8),
-                              Icon(
-                                _weatherIcon(item.mainWeather),
-                                size: 32,
-                                color: Colors.orange,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '${item.temperature.toStringAsFixed(0)}°C',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                item.description,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ],
+                            ),
                           ),
-                        );
-                      },
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Perkiraan Cuaca',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 150,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: forecast.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        itemBuilder: (context, index) {
+                          final item = forecast[index];
+
+                          return Container(
+                            width: 110,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF2F2F2),
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _dayLabel(item.dateTime),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Icon(
+                                  _weatherIcon(item.mainWeather),
+                                  size: 32,
+                                  color: Colors.orange,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '${item.temperature.toStringAsFixed(0)}°C',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  item.description,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

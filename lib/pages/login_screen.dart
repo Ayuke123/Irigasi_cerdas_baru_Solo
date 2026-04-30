@@ -206,28 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 10),
                       Row(
-                        children: [
-                          Checkbox(
-                            value: rememberMe,
-                            onChanged: (value) {
-                              setState(() {
-                                rememberMe = value ?? false;
-                              });
-                            },
-                          ),
-                          const Text(
-                            'Ingat Saya',
-                            style: TextStyle(fontSize: 13),
-                          ),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: () {},
-                            child: const Text(
-                              'Lupa Kata Sandi?',
-                              style: TextStyle(fontSize: 13),
-                            ),
-                          ),
-                        ],
+                        children: [],
                       ),
                       const SizedBox(height: 10),
                       SizedBox(

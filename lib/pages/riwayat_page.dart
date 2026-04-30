@@ -11,12 +11,10 @@ class RiwayatPage extends StatefulWidget {
 }
 
 class _RiwayatPageState extends State<RiwayatPage> {
-  // 1. Inisialisasi StreamSubscription untuk menghindari memory leak
   StreamSubscription? _subscription;
   List<Map<String, dynamic>> riwayatList = [];
   bool _isLoading = true;
 
-  // 2. Referensi Database dengan Query (Urutkan berdasarkan Key dan ambil 50 data terakhir)
   final Query _historyQuery = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
     databaseURL:
@@ -31,7 +29,6 @@ class _RiwayatPageState extends State<RiwayatPage> {
 
   @override
   void dispose() {
-    // 3. Batalkan listener saat halaman ditutup
     _subscription?.cancel();
     super.dispose();
   }
@@ -48,9 +45,9 @@ class _RiwayatPageState extends State<RiwayatPage> {
 
       List<Map<String, dynamic>> loadedData = [];
 
-      // Menggunakan children untuk menjaga urutan yang diberikan oleh query limitToLast
       for (var child in event.snapshot.children) {
         final data = child.value as Map<dynamic, dynamic>;
+
         loadedData.add({
           'id': child.key,
           'tanggal': data['waktu']?.toString() ?? '-',
@@ -60,20 +57,20 @@ class _RiwayatPageState extends State<RiwayatPage> {
       }
 
       setState(() {
-        // Karena limitToLast(50), data terbaru ada di akhir list children.
-        // Kita balik (reverse) agar yang paling baru muncul di atas.
         riwayatList = loadedData.reversed.toList();
         _isLoading = false;
       });
     }, onError: (error) {
-      print("Error Database: $error");
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+      });
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
           'Riwayat Penyiraman',
@@ -82,40 +79,51 @@ class _RiwayatPageState extends State<RiwayatPage> {
             fontSize: 20,
           ),
         ),
-        backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+        centerTitle: false,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
         elevation: 0,
-        centerTitle: false, // 🔥 ini bikin ke kiri
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator()) // Loading indicator
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: riwayatList.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      itemCount: riwayatList.length,
-                      itemBuilder: (context, index) {
-                        final item = riwayatList[index];
-                        return _buildHistoryCard(item);
-                      },
-                    ),
+              child: CircularProgressIndicator(),
+            )
+          : Container(
+              color: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: riwayatList.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        itemCount: riwayatList.length,
+                        itemBuilder: (context, index) {
+                          return _buildHistoryCard(
+                            riwayatList[index],
+                          );
+                        },
+                      ),
+              ),
             ),
     );
   }
 
-  // Widget untuk tampilan kartu riwayat
   Widget _buildHistoryCard(Map<String, dynamic> item) {
     bool isKering = item['status'] == "Kering";
 
     return Card(
-      elevation: 2,
+      color: const Color(0xFFF2F2F2), // 🔥 sama seperti notif
+      surfaceTintColor: const Color(0xFFF2F2F2),
+      elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(15),
       ),
+
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 10,
+        ),
         leading: CircleAvatar(
           backgroundColor: isKering ? Colors.red.shade50 : Colors.green.shade50,
           child: Icon(
@@ -125,24 +133,33 @@ class _RiwayatPageState extends State<RiwayatPage> {
         ),
         title: Text(
           item['tanggal'],
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8.0),
+          padding: const EdgeInsets.only(top: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Kelembaban: ${item['kelembaban']}%'),
+              Text(
+                'Kelembaban: ${item['kelembaban']}%',
+              ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: isKering ? Colors.red : Colors.green,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   item['status'],
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],
@@ -152,17 +169,23 @@ class _RiwayatPageState extends State<RiwayatPage> {
     );
   }
 
-  // Widget jika data kosong
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Icon(Icons.history_toggle_off, size: 80, color: Colors.grey),
+        children: [
+          Icon(
+            Icons.history_toggle_off,
+            size: 80,
+            color: Colors.grey,
+          ),
           SizedBox(height: 16),
           Text(
             "Belum ada riwayat aktivitas",
-            style: TextStyle(color: Colors.grey, fontSize: 16),
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 16,
+            ),
           ),
         ],
       ),

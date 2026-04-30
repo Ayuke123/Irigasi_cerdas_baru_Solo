@@ -13,24 +13,33 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final namaController = TextEditingController(); // ✅ pindah ke sini
+  final namaController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final alamatController = TextEditingController();
+  final phoneController = TextEditingController(); // 🔥 NOMOR HP
 
   bool isLoading = false;
   bool obscurePassword = true;
 
   Future<void> registerUser() async {
-    final nama = namaController.text.trim(); // ✅ ambil di sini
+    final nama = namaController.text.trim();
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
     final alamat = alamatController.text.trim();
+    final phone = phoneController.text.trim();
 
-    if (nama.isEmpty || email.isEmpty || password.isEmpty || alamat.isEmpty) {
+    if (nama.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        alamat.isEmpty ||
+        phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Nama, email, password, dan alamat wajib diisi')),
+          content: Text(
+            'Nama, email, password, alamat, dan nomor HP wajib diisi',
+          ),
+        ),
       );
       return;
     }
@@ -48,11 +57,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       final uid = userCredential.user!.uid;
 
-      // ✅ SIMPAN SEMUA DATA
+      // 🔥 SIMPAN KE FIRESTORE
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'nama': nama,
         'email': email,
         'alamat': alamat,
+        'phone': phone,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -93,10 +103,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    namaController.dispose(); // ✅ jangan lupa
+    namaController.dispose();
     emailController.dispose();
     passwordController.dispose();
     alamatController.dispose();
+    phoneController.dispose();
     super.dispose();
   }
 
@@ -104,6 +115,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1F95D0),
+      // TOMBOL KEMBALI
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1F95D0),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            );
+          },
+        ),
+      ),
+
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -124,65 +150,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
-                        color: Colors.black87,
                       ),
                     ),
                   ),
                   const SizedBox(height: 24),
-
-                  // 🔥 NAMA
-                  const Text('Nama',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text('Nama'),
                   const SizedBox(height: 8),
                   TextField(
                     controller: namaController,
-                    decoration: InputDecoration(
-                      hintText: 'Masukkan nama',
-                      filled: true,
-                      fillColor: const Color(0xFFD9D9D9),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
+                    decoration: _inputStyle('Masukkan nama'),
                   ),
-
                   const SizedBox(height: 16),
-
-                  // 🔥 EMAIL
-                  const Text('Email',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text('Email'),
                   const SizedBox(height: 8),
                   TextField(
                     controller: emailController,
-                    decoration: InputDecoration(
-                      hintText: 'Masukkan email',
-                      filled: true,
-                      fillColor: const Color(0xFFD9D9D9),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
+                    decoration: _inputStyle('Masukkan email'),
                   ),
-
                   const SizedBox(height: 16),
-
-                  // 🔥 PASSWORD
-                  const Text('Password',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text('Nomor HP'),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: _inputStyle('Masukkan nomor HP'),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Password'),
                   const SizedBox(height: 8),
                   TextField(
                     controller: passwordController,
                     obscureText: obscurePassword,
-                    decoration: InputDecoration(
-                      hintText: 'Masukkan password',
-                      filled: true,
-                      fillColor: const Color(0xFFD9D9D9),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
+                    decoration: _inputStyle('Masukkan password').copyWith(
                       suffixIcon: IconButton(
                         onPressed: () {
                           setState(() {
@@ -197,28 +196,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 16),
-
-                  // 🔥 ALAMAT
-                  const Text('Alamat',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text('Alamat'),
                   const SizedBox(height: 8),
                   TextField(
                     controller: alamatController,
-                    decoration: InputDecoration(
-                      hintText: 'Masukkan alamat',
-                      filled: true,
-                      fillColor: const Color(0xFFD9D9D9),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
+                    maxLines: 2,
+                    decoration: _inputStyle('Masukkan alamat'),
                   ),
-
                   const SizedBox(height: 20),
-
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -241,6 +227,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  InputDecoration _inputStyle(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: const Color(0xFFD9D9D9),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -32,18 +33,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     // Set the fields to the current user's data
     emailController.text = user!.email ?? '';
-    phoneController.text = data?['phoneNumber'] ?? '';
+    phoneController.text = data?['phone'] ?? '';
     alamatController.text = data?['alamat'] ?? '';
   }
 
   // Update the user's profile
+  // =========================
+// TAMBAHKAN DI DALAM METHOD update()
+// =========================
+
   Future<void> update() async {
-    // Check if email needs to be updated
     if (emailController.text != user!.email) {
       try {
-        await user!.updateEmail(emailController.text); // Update email
+        await user!.updateEmail(emailController.text);
       } catch (e) {
-        // Handle error if email update fails
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error updating email: $e')),
         );
@@ -51,19 +54,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
     }
 
-    // Update Firestore document with the new data
     await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-      'phoneNumber': phoneController.text.trim(),
+      'phone': phoneController.text.trim(),
       'alamat': alamatController.text.trim(),
+    });
+
+    // 🔥 TAMBAHAN NOTIFIKASI BARU
+    await FirebaseDatabase.instance.ref('notifications/items').push().set({
+      'title': 'Profil Diperbarui',
+      'body': 'Informasi pengguna berhasil diperbarui',
+      'time': DateTime.now().toString(),
+      'isRead': false,
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Profil berhasil diperbarui')),
     );
 
-    // After updating, navigate back to ProfileScreen and refresh data
-    Navigator.pop(
-        context, true); // Return 'true' to indicate update was successful
+    Navigator.pop(context, true);
   }
 
   @override
@@ -115,54 +123,113 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 20),
 
               // EMAIL
-              TextField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: const Icon(Icons.email),
-                  filled: true,
-                  fillColor: const Color(0xffF1F4F9),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Email",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black54,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: emailController,
+                    decoration: InputDecoration(
+                      hintText: "Masukkan email",
+                      prefixIcon: const Icon(Icons.email),
+                      filled: true,
+                      fillColor: const Color(0xffF1F4F9),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+
               const SizedBox(height: 16),
 
-              // PHONE
-              TextField(
-                controller: phoneController,
-                decoration: InputDecoration(
-                  labelText: 'Nomor Telepon',
-                  prefixIcon: const Icon(Icons.phone),
-                  filled: true,
-                  fillColor: const Color(0xffF1F4F9),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+// PHONE
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Nomor Telepon",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black54,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: phoneController,
+                    decoration: InputDecoration(
+                      hintText: "Masukkan nomor telepon",
+                      prefixIcon: const Icon(Icons.phone),
+                      filled: true,
+                      fillColor: const Color(0xffF1F4F9),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+
               const SizedBox(height: 16),
 
-              // ALAMAT
-              TextField(
-                controller: alamatController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: 'Alamat',
-                  prefixIcon: const Icon(Icons.location_on),
-                  filled: true,
-                  fillColor: const Color(0xffF1F4F9),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+// ALAMAT
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Alamat",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black54,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: alamatController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: "Masukkan alamat",
+                      prefixIcon: const Padding(
+                        padding: EdgeInsets.only(bottom: 55),
+                        child: Icon(Icons.location_on),
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xffF1F4F9),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+
               const SizedBox(height: 30),
-
               // BUTTON
               SizedBox(
                 width: double.infinity,

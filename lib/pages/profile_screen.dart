@@ -36,7 +36,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       setState(() {
         email = data?['email'] ?? '';
-        nomorTelepon = data?['phoneNumber'] ?? '';
+        nomorTelepon = data?['phone'] ?? '';
         alamat = data?['alamat'] ?? '';
       });
     }
