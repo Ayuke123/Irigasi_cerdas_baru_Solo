@@ -1,13 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:irigasi_cerdas_baru/firebase_options.dart';
 import 'package:irigasi_cerdas_baru/services/weather_service.dart';
+import 'package:irigasi_cerdas_baru/services/pump_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,8 +45,11 @@ class _DashboardPageState extends State<DashboardPage> {
         "https://irigasi-cerdas-baru-default-rtdb.asia-southeast1.firebasedatabase.app",
   ).ref();
 
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
+  PumpService? _pumpService;
+
+  StreamSubscription<DatabaseEvent>? _liveSub;
+  StreamSubscription<DatabaseEvent>? _pumpSub;
+  StreamSubscription<DatabaseEvent>? _modeSub;
 
   String pumpStatus = "OFF";
   String soilStatus = "";
@@ -61,67 +65,33 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    _initNotifications();
     loadWeather();
     loadFirebaseData();
+
+    _pumpService = PumpService(dbRef);
+    _pumpService!.start();
   }
 
-  Future<void> _initNotifications() async {
-    const AndroidInitializationSettings android =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    const InitializationSettings settings =
-        InitializationSettings(android: android);
-
-    await flutterLocalNotificationsPlugin.initialize(settings);
-  }
-
-  Future<void> _sendNotification(String status) async {
-    const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
-      'soil_status_channel',
-      'Status Tanah',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-
-    const NotificationDetails details =
-        NotificationDetails(android: androidDetails);
-
-    await flutterLocalNotificationsPlugin.show(
-      0,
-      'Peringatan Status Tanah',
-      'Status tanah saat ini: $status',
-      details,
-    );
-  }
-
-  void _saveNotificationToDatabase(String status) {
-    dbRef.child('notifications/items').push().set({
-      'title': 'Perubahan Status Tanah',
-      'body': 'Tanah sekarang dalam kondisi $status',
-      'time': DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
-      'isRead': false,
-    });
+  @override
+  void dispose() {
+    _pumpService?.stop();
+    _liveSub?.cancel();
+    _pumpSub?.cancel();
+    _modeSub?.cancel();
+    super.dispose();
   }
 
   void loadFirebaseData() {
-    dbRef.child('live').onValue.listen((event) {
+    _liveSub?.cancel();
+    _liveSub = dbRef.child('live').onValue.listen((event) {
       if (!event.snapshot.exists) return;
 
       final data = Map<String, dynamic>.from(
         event.snapshot.value as Map,
       );
 
-      final newStatus = data['status'].toString();
-
-      if (soilStatus.isNotEmpty && newStatus != soilStatus) {
-        _sendNotification(newStatus);
-        _saveNotificationToDatabase(newStatus);
-      }
-
       setState(() {
-        soilStatus = newStatus;
+        soilStatus = data['status'].toString();
         soilValue = int.tryParse(data['value'].toString()) ?? 0;
         pumpStatus = data['pump_state'].toString();
 
@@ -138,7 +108,8 @@ class _DashboardPageState extends State<DashboardPage> {
       });
     });
 
-    dbRef.child('control/pump').onValue.listen((event) {
+    _pumpSub?.cancel();
+    _pumpSub = dbRef.child('control/pump').onValue.listen((event) {
       if (!event.snapshot.exists) return;
 
       setState(() {
@@ -146,7 +117,8 @@ class _DashboardPageState extends State<DashboardPage> {
       });
     });
 
-    dbRef.child('control/mode').onValue.listen((event) {
+    _modeSub?.cancel();
+    _modeSub = dbRef.child('control/mode').onValue.listen((event) {
       if (!event.snapshot.exists) return;
 
       setState(() {
@@ -199,9 +171,7 @@ class _DashboardPageState extends State<DashboardPage> {
         foregroundColor: Colors.black,
         title: const Text(
           "Hallo!",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
@@ -237,16 +207,12 @@ class _DashboardPageState extends State<DashboardPage> {
                       minHeight: 10,
                       borderRadius: BorderRadius.circular(10),
                       backgroundColor: Colors.white24,
-                      valueColor: const AlwaysStoppedAnimation(
-                        Colors.white,
-                      ),
+                      valueColor: const AlwaysStoppedAnimation(Colors.white),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       "Status: $soilStatus",
-                      style: const TextStyle(
-                        color: Colors.white,
-                      ),
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ],
                 ),
@@ -264,9 +230,7 @@ class _DashboardPageState extends State<DashboardPage> {
               child: ListTile(
                 title: const Text(
                   "Cuaca",
-                  style: TextStyle(
-                    color: Colors.white,
-                  ),
+                  style: TextStyle(color: Colors.white),
                 ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -282,9 +246,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                     Text(
                       lokasi,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                      ),
+                      style: const TextStyle(color: Colors.white70),
                     ),
                   ],
                 ),
@@ -302,9 +264,7 @@ class _DashboardPageState extends State<DashboardPage> {
               child: ListTile(
                 title: const Text(
                   "Status Pompa",
-                  style: TextStyle(
-                    color: Colors.white,
-                  ),
+                  style: TextStyle(color: Colors.white),
                 ),
                 subtitle: Row(
                   children: [
@@ -417,67 +377,41 @@ class _DashboardPageState extends State<DashboardPage> {
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
-                        child: _buildManualButton(
-                          title: pumpValue ? "MATIKAN POMPA" : "NYALAKAN POMPA",
-                          icon: Icons.power_settings_new,
-                          color: Colors.green,
-                          isActive: pumpValue,
+                        child: InkWell(
                           onTap: () {
                             dbRef.child('control/pump').set(!pumpValue);
                           },
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: pumpValue ? Colors.green : Colors.grey,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.power_settings_new,
+                                  size: 40,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  pumpValue
+                                      ? "MATIKAN POMPA"
+                                      : "NYALAKAN POMPA",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ],
-                    const SizedBox(height: 10),
-                    Text(
-                      mode == "Otomatis"
-                          ? "Mode otomatis aktif."
-                          : "Mode manual aktif.",
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
-                    )
                   ],
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildManualButton({
-    required String title,
-    required IconData icon,
-    required Color color,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 500),
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(
-          color: isActive ? color : Colors.grey.shade300,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 40,
-              color: isActive ? Colors.white : Colors.black54,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: TextStyle(
-                color: isActive ? Colors.white : Colors.black87,
-                fontWeight: FontWeight.bold,
               ),
             ),
           ],

@@ -14,6 +14,7 @@ class PumpService {
 
   StreamSubscription<DatabaseEvent>? _liveSub;
   StreamSubscription<DatabaseEvent>? _modeSub;
+  bool _started = false;
 
   String _mode = 'Manual';
   int _soilValue = 0;
@@ -22,6 +23,8 @@ class PumpService {
   PumpService(this.dbRef, {this.threshold = 40});
 
   void start() {
+    if (_started) return;
+    _started = true;
     // Listen live data (soil value & pump state)
     _liveSub = dbRef.child('live').onValue.listen((event) {
       if (!event.snapshot.exists || event.snapshot.value == null) return;
@@ -64,5 +67,8 @@ class PumpService {
   void stop() {
     _liveSub?.cancel();
     _modeSub?.cancel();
+    _liveSub = null;
+    _modeSub = null;
+    _started = false;
   }
 }

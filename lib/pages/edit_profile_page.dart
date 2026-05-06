@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_database/firebase_database.dart';
+
+import 'pages/notif_widget.dart'; // pastikan path ini benar
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -11,10 +12,18 @@ class EditProfilePage extends StatefulWidget {
 }
 
 class _EditProfilePageState extends State<EditProfilePage> {
-  final emailController = TextEditingController();
   final phoneController = TextEditingController();
   final alamatController = TextEditingController();
-  final user = FirebaseAuth.instance.currentUser;
+
+  final currentPasswordController = TextEditingController();
+  final newPasswordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
+
+  bool isLoading = false;
+
+  bool showCurrent = false;
+  bool showNew = false;
+  bool showConfirm = false;
 
   @override
   void initState() {
@@ -22,78 +31,110 @@ class _EditProfilePageState extends State<EditProfilePage> {
     loadData();
   }
 
-  // Load data from Firestore
+  @override
+  void dispose() {
+    phoneController.dispose();
+    alamatController.dispose();
+    currentPasswordController.dispose();
+    newPasswordController.dispose();
+    confirmPasswordController.dispose();
+    super.dispose();
+  }
+
   Future<void> loadData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
     final doc = await FirebaseFirestore.instance
         .collection('users')
-        .doc(user!.uid)
+        .doc(user.uid)
         .get();
 
     final data = doc.data();
 
-    // Set the fields to the current user's data
-    emailController.text = user!.email ?? '';
-    phoneController.text = data?['phone'] ?? '';
-    alamatController.text = data?['alamat'] ?? '';
+    if (!mounted) return;
+
+    setState(() {
+      phoneController.text = data?['phone'] ?? '';
+      alamatController.text = data?['alamat'] ?? '';
+    });
   }
 
-  // Update the user's profile
-  // =========================
-// TAMBAHKAN DI DALAM METHOD update()
-// =========================
+  Future<void> updateProfile() async {
+    if (isLoading) return;
 
-  Future<void> update() async {
-    if (emailController.text != user!.email) {
-      try {
-        await user!.updateEmail(emailController.text);
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating email: $e')),
+    setState(() => isLoading = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // 🔐 reauth WAJIB aman
+      if (currentPasswordController.text.isNotEmpty) {
+        final credential = EmailAuthProvider.credential(
+          email: user.email!,
+          password: currentPasswordController.text.trim(),
         );
-        return;
+
+        await user.reauthenticateWithCredential(credential);
       }
+
+      // 🔑 update password kalau diisi
+      if (newPasswordController.text.isNotEmpty) {
+        if (newPasswordController.text != confirmPasswordController.text) {
+          showMsg("Password tidak cocok");
+          return;
+        }
+
+        await user.updatePassword(newPasswordController.text.trim());
+      }
+
+      // 🔥 update firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+        'phone': phoneController.text.trim(),
+        'alamat': alamatController.text.trim(),
+      });
+
+      // 🔔 notif (PASTIKAN ADA DI notif_widget.dart)
+      await kirimNotifikasi(
+        "Profil Diperbarui",
+        "Data akun kamu berhasil diperbarui",
+      );
+
+      showMsg("Berhasil diperbarui");
+      Navigator.pop(context, true);
+    } catch (e) {
+      showMsg("Error: $e");
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
-
-    await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-      'phone': phoneController.text.trim(),
-      'alamat': alamatController.text.trim(),
-    });
-
-    // 🔥 TAMBAHAN NOTIFIKASI BARU
-    await FirebaseDatabase.instance.ref('notifications/items').push().set({
-      'title': 'Profil Diperbarui',
-      'body': 'Informasi pengguna berhasil diperbarui',
-      'time': DateTime.now().toString(),
-      'isRead': false,
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profil berhasil diperbarui')),
-    );
-
-    Navigator.pop(context, true);
   }
 
-  @override
-  void dispose() {
-    emailController.dispose();
-    phoneController.dispose();
-    alamatController.dispose();
-    super.dispose();
+  void showMsg(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final email = FirebaseAuth.instance.currentUser?.email ?? '';
+
     return Scaffold(
       backgroundColor: const Color(0xffF5F7FB),
       appBar: AppBar(
         title: const Text(
-          'Edit Profil',
+          "Edit Profil",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
+
+        // 🔥 INI YANG SEBELUMNYA ERROR KALAU IMPORT SALAH
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -105,9 +146,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              )
             ],
           ),
           child: Column(
@@ -121,140 +162,137 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              // EMAIL
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Email",
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: emailController,
-                    decoration: InputDecoration(
-                      hintText: "Masukkan email",
-                      prefixIcon: const Icon(Icons.email),
-                      filled: true,
-                      fillColor: const Color(0xffF1F4F9),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ],
+              _buildInput(
+                label: "Email",
+                icon: Icons.email,
+                controller: TextEditingController(text: email),
+                enabled: false,
               ),
-
-              const SizedBox(height: 16),
-
-// PHONE
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Nomor Telepon",
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: phoneController,
-                    decoration: InputDecoration(
-                      hintText: "Masukkan nomor telepon",
-                      prefixIcon: const Icon(Icons.phone),
-                      filled: true,
-                      fillColor: const Color(0xffF1F4F9),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ],
+              _buildInput(
+                label: "Nomor Telepon",
+                icon: Icons.phone,
+                controller: phoneController,
               ),
-
-              const SizedBox(height: 16),
-
-// ALAMAT
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Alamat",
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: alamatController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: "Masukkan alamat",
-                      prefixIcon: const Padding(
-                        padding: EdgeInsets.only(bottom: 55),
-                        child: Icon(Icons.location_on),
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xffF1F4F9),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ],
+              _buildInput(
+                label: "Alamat",
+                icon: Icons.location_on,
+                controller: alamatController,
+                maxLines: 3,
               ),
-
-              const SizedBox(height: 30),
-              // BUTTON
+              const SizedBox(height: 20),
+              _buildPassword(
+                "Password Saat Ini",
+                currentPasswordController,
+                showCurrent,
+                () => setState(() => showCurrent = !showCurrent),
+              ),
+              _buildPassword(
+                "Password Baru",
+                newPasswordController,
+                showNew,
+                () => setState(() => showNew = !showNew),
+              ),
+              _buildPassword(
+                "Konfirmasi Password",
+                confirmPasswordController,
+                showConfirm,
+                () => setState(() => showConfirm = !showConfirm),
+              ),
+              const SizedBox(height: 25),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: update,
+                  onPressed: isLoading ? null : updateProfile,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromARGB(255, 90, 158, 227),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    "Simpan Perubahan",
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black,
-                    ),
-                  ),
+                  child: isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          "Simpan Perubahan",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildInput({
+    required String label,
+    required IconData icon,
+    required TextEditingController controller,
+    bool enabled = true,
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(fontSize: 13, color: Colors.black54)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          enabled: enabled,
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            prefixIcon: Icon(icon),
+            filled: true,
+            fillColor: const Color(0xffF1F4F9),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  Widget _buildPassword(
+    String label,
+    TextEditingController controller,
+    bool visible,
+    VoidCallback toggle,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(fontSize: 13, color: Colors.black54)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          obscureText: !visible,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.lock),
+            suffixIcon: IconButton(
+              icon: Icon(
+                visible ? Icons.visibility : Icons.visibility_off,
+              ),
+              onPressed: toggle,
+            ),
+            filled: true,
+            fillColor: const Color(0xffF1F4F9),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
     );
   }
 }

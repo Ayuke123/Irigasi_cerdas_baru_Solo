@@ -47,11 +47,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (!mounted) return;
 
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const MainScreen()),
-          (route) => false,
-        );
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const MainScreen()),
+            (route) => false,
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       String message;
@@ -73,13 +75,17 @@ class _LoginScreenState extends State<LoginScreen> {
           message = 'Login gagal: ${e.message}';
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {

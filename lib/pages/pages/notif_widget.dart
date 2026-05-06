@@ -4,7 +4,7 @@ import 'package:firebase_database/firebase_database.dart';
 import '/services/notifikasi_service.dart';
 
 /// ==============================
-/// 🔴 BADGE NOTIF (ANTI SPAM + SAFE)
+/// 🔴 BADGE NOTIF (ANTI SPAM)
 /// ==============================
 class NotifBadge extends StatefulWidget {
   const NotifBadge({super.key});
@@ -28,27 +28,23 @@ class _NotifBadgeState extends State<NotifBadge> {
       stream: ref.onValue,
       builder: (context, snapshot) {
         int unread = 0;
-
         final data = snapshot.data?.snapshot.value;
 
         if (data is Map) {
-          data.forEach((key, value) {
-            if (value is Map) {
-              final isRead = value['isRead'] == true;
+          data.forEach((key, item) {
+            if (item is Map) {
+              final isRead = item['isRead'] == true;
 
-              if (!isRead) {
-                unread++;
+              if (!isRead && !shownNotif.contains(key)) {
+                shownNotif.add(key);
 
-                // 🔥 ANTI SPAM NOTIF
-                if (!shownNotif.contains(key)) {
-                  shownNotif.add(key);
-
-                  NotificationService.showNotification(
-                    (value['title'] ?? '').toString(),
-                    (value['body'] ?? '').toString(),
-                  );
-                }
+                NotificationService.showNotification(
+                  item['title'] ?? '',
+                  item['body'] ?? '',
+                );
               }
+
+              if (!isRead) unread++;
             }
           });
         }
@@ -61,7 +57,7 @@ class _NotifBadgeState extends State<NotifBadge> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => NotifikasiPage(), // ❗ NO CONST
+                    builder: (_) => const NotifikasiPage(),
                   ),
                 );
               },
@@ -93,7 +89,7 @@ class _NotifBadgeState extends State<NotifBadge> {
 }
 
 /// ==============================
-/// 🔔 HALAMAN NOTIF (UI CLEAN)
+/// 🔔 HALAMAN NOTIF
 /// ==============================
 class NotifikasiPage extends StatelessWidget {
   const NotifikasiPage({super.key});
@@ -112,25 +108,14 @@ class NotifikasiPage extends StatelessWidget {
         FirebaseDatabase.instance.ref('notifications/${user.uid}/items');
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text(
-          "Notifikasi",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text("Notifikasi")),
       body: StreamBuilder<DatabaseEvent>(
         stream: ref.onValue,
         builder: (context, snapshot) {
           final data = snapshot.data?.snapshot.value;
 
           if (data == null || data is! Map) {
-            return const Center(
-              child: Text("Belum ada notifikasi"),
-            );
+            return const Center(child: Text("Belum ada notifikasi"));
           }
 
           final List<Map<String, dynamic>> items = [];
@@ -139,74 +124,31 @@ class NotifikasiPage extends StatelessWidget {
             if (value is Map) {
               items.add({
                 'key': key.toString(),
-                'title': (value['title'] ?? '').toString(),
-                'body': (value['body'] ?? '').toString(),
-                'time': (value['time'] ?? '').toString(),
+                'title': value['title'] ?? '',
+                'body': value['body'] ?? '',
+                'time': value['time'] ?? '',
                 'isRead': value['isRead'] == true,
               });
             }
           });
 
-          items.sort((a, b) => b['time'].compareTo(a['time']));
+          items.sort(
+              (a, b) => (b['time'] as String).compareTo(a['time'] as String));
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
             itemCount: items.length,
             itemBuilder: (context, i) {
               final item = items[i];
 
-              return Card(
-                color: const Color(0xFFF5F5F5),
-                elevation: 0,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: item['isRead']
-                        ? Colors.grey.shade300
-                        : Colors.red.shade50,
-                    child: Icon(
-                      Icons.notifications,
-                      color: item['isRead'] ? Colors.grey : Colors.red,
-                    ),
-                  ),
-                  title: Text(
-                    item['title'],
-                    style: TextStyle(
-                      fontWeight:
-                          item['isRead'] ? FontWeight.normal : FontWeight.bold,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 5),
-                      Text(item['body']),
-                      const SizedBox(height: 5),
-                      Text(
-                        item['time'],
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                  trailing: item['isRead']
-                      ? null
-                      : const Icon(
-                          Icons.circle,
-                          color: Colors.red,
-                          size: 10,
-                        ),
-                  onTap: () async {
-                    await ref.child(item['key']).update({
-                      'isRead': true,
-                    });
-                  },
-                ),
+              return ListTile(
+                title: Text(item['title']),
+                subtitle: Text(item['body']),
+                trailing: item['isRead']
+                    ? null
+                    : const Icon(Icons.circle, color: Colors.red, size: 10),
+                onTap: () async {
+                  await ref.child(item['key']).update({'isRead': true});
+                },
               );
             },
           );
@@ -217,7 +159,7 @@ class NotifikasiPage extends StatelessWidget {
 }
 
 /// ==============================
-/// 🔔 KIRIM NOTIF (AMAN)
+/// 🔔 KIRIM NOTIF
 /// ==============================
 Future<void> kirimNotifikasi(String title, String body) async {
   final user = FirebaseAuth.instance.currentUser;

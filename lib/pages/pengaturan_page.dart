@@ -52,9 +52,11 @@ class _PengaturanPageState extends State<PengaturanPage> {
       'alamat': alamatController.text.trim(),
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Berhasil update data')),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Berhasil update data')),
+      );
+    }
   }
 
   // 🔥 DELETE TANPA HARDCODE PASSWORD (lebih aman untuk sekarang)

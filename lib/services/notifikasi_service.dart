@@ -5,39 +5,29 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   static Future init() async {
-    const AndroidInitializationSettings android = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
+    const AndroidInitializationSettings android =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const InitializationSettings settings = InitializationSettings(
-      android: android,
-    );
+    const InitializationSettings settings =
+        InitializationSettings(android: android);
 
     await notificationsPlugin.initialize(settings);
   }
 
-  static Future showNotification(
-    String title,
-    String body,
-  ) async {
+  static Future showNotification(String title, String body) async {
     const AndroidNotificationDetails android = AndroidNotificationDetails(
       'irigasi_channel',
       'Irigasi Notification',
       channelDescription: 'Notifikasi sistem irigasi cerdas',
       importance: Importance.max,
       priority: Priority.high,
-      icon: '@mipmap/ic_launcher', // 🔥 logo notif
+      playSound: true,
     );
 
-    const NotificationDetails details = NotificationDetails(
-      android: android,
-    );
+    const NotificationDetails details = NotificationDetails(android: android);
 
-    await notificationsPlugin.show(
-      0,
-      title,
-      body,
-      details,
-    );
+    final id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+    await notificationsPlugin.show(id, title, body, details);
   }
 }

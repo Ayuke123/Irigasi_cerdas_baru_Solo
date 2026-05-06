@@ -31,11 +31,17 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
 
       await user.delete();
 
+      if (!mounted) return;
+
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal: $e")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gagal: $e")),
+        );
+      } else {
+        print('Delete account failed (unmounted): $e');
+      }
     }
   }
 
