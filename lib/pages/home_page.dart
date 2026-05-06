@@ -39,6 +39,8 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  TextEditingController alamatController = TextEditingController();
+
   final DatabaseReference dbRef = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
     databaseURL:
@@ -50,6 +52,9 @@ class _DashboardPageState extends State<DashboardPage> {
   StreamSubscription<DatabaseEvent>? _liveSub;
   StreamSubscription<DatabaseEvent>? _pumpSub;
   StreamSubscription<DatabaseEvent>? _modeSub;
+
+  // ⭐ PINDAHAN DARI LUAR CLASS
+  StreamSubscription<DocumentSnapshot>? _weatherSub;
 
   String pumpStatus = "OFF";
   String soilStatus = "";
@@ -65,7 +70,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    loadWeather();
+    listenWeatherRealtime(); // ⭐ SUDAH DIGANTI
     loadFirebaseData();
 
     _pumpService = PumpService(dbRef);
@@ -78,7 +83,39 @@ class _DashboardPageState extends State<DashboardPage> {
     _liveSub?.cancel();
     _pumpSub?.cancel();
     _modeSub?.cancel();
+    _weatherSub?.cancel(); // ⭐ TAMBAHAN
     super.dispose();
+  }
+
+  // ==============================
+  // ⭐ REALTIME WEATHER
+  // ==============================
+  void listenWeatherRealtime() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    _weatherSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .listen((doc) async {
+      if (doc.exists) {
+        String alamat = doc.data()?['alamat'] ?? "Makassar";
+
+        try {
+          final result = await WeatherService().getWeatherByAddress(alamat);
+
+          if (!mounted) return;
+
+          setState(() {
+            suhu = "${result.current.temperature.toStringAsFixed(0)}°C";
+            lokasi = result.current.cityName;
+          });
+        } catch (e) {
+          debugPrint("Weather error: $e");
+        }
+      }
+    });
   }
 
   void loadFirebaseData() {
@@ -127,6 +164,7 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
+  // ❗ TIDAK DIHAPUS (sesuai request kamu)
   Future<void> loadWeather() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -178,7 +216,6 @@ class _DashboardPageState extends State<DashboardPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            /// KELEMBABAN
             Card(
               color: getSoilColor(),
               shape: RoundedRectangleBorder(
@@ -218,10 +255,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 10),
-
-            /// CUACA
             Card(
               color: Colors.amber,
               shape: RoundedRectangleBorder(
@@ -252,10 +286,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 10),
-
-            /// STATUS POMPA
             Card(
               color: Colors.grey,
               shape: RoundedRectangleBorder(
@@ -284,10 +315,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
-            /// GRAFIK
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -328,10 +356,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
-            /// KONTROL POMPA
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
