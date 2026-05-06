@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'pages/notif_widget.dart'; // pastikan path ini benar
+import 'pages/notif_widget.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -69,7 +69,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // 🔐 reauth WAJIB aman
+      // 🔐 re-auth
       if (currentPasswordController.text.isNotEmpty) {
         final credential = EmailAuthProvider.credential(
           email: user.email!,
@@ -79,7 +79,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         await user.reauthenticateWithCredential(credential);
       }
 
-      // 🔑 update password kalau diisi
+      // 🔑 update password
       if (newPasswordController.text.isNotEmpty) {
         if (newPasswordController.text != confirmPasswordController.text) {
           showMsg("Password tidak cocok");
@@ -89,16 +89,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
         await user.updatePassword(newPasswordController.text.trim());
       }
 
-      // 🔥 update firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({
+      // 🔥 FIX DI SINI (PENTING BANGET)
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'phone': phoneController.text.trim(),
         'alamat': alamatController.text.trim(),
-      });
+      }, SetOptions(merge: true)); // ⭐ INI KUNCINYA
 
-      // 🔔 notif (PASTIKAN ADA DI notif_widget.dart)
       await kirimNotifikasi(
         "Profil Diperbarui",
         "Data akun kamu berhasil diperbarui",
@@ -133,8 +129,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
-
-        // 🔥 INI YANG SEBELUMNYA ERROR KALAU IMPORT SALAH
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

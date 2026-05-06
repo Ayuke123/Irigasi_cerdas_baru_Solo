@@ -1,3 +1,5 @@
+import 'dart:async'; // ⭐ TAMBAHAN
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,10 +15,44 @@ class CuacaPage extends StatefulWidget {
 class _CuacaPageState extends State<CuacaPage> {
   late Future<WeatherResult> weatherFuture;
 
+  // ⭐ TAMBAHAN
+  StreamSubscription<DocumentSnapshot>? _alamatSub;
+
   @override
   void initState() {
     super.initState();
     weatherFuture = _loadWeatherFromUserAddress();
+    listenAlamatChange(); // ⭐ TAMBAHAN
+  }
+
+  // ⭐ TAMBAHAN (LISTENER REALTIME)
+  void listenAlamatChange() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    _alamatSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .listen((doc) {
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        final alamat = data['alamat'] ?? 'Makassar';
+
+        setState(() {
+          weatherFuture = Future.delayed(
+            Duration(milliseconds: 10),
+            () => WeatherService().getWeatherByAddress(alamat),
+          );
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _alamatSub?.cancel(); // ⭐ TAMBAHAN
+    super.dispose();
   }
 
   Future<WeatherResult> _loadWeatherFromUserAddress() async {
@@ -56,8 +92,7 @@ class _CuacaPageState extends State<CuacaPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // 🔥 background putih
-
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
           'Cuaca',
@@ -68,9 +103,8 @@ class _CuacaPageState extends State<CuacaPage> {
         foregroundColor: Colors.black,
         elevation: 0,
       ),
-
       body: Container(
-        color: Colors.white, // 🔥 body putih
+        color: Colors.white,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FutureBuilder<WeatherResult>(
@@ -108,10 +142,7 @@ class _CuacaPageState extends State<CuacaPage> {
                         children: [
                           Row(
                             children: const [
-                              Icon(
-                                Icons.cloud,
-                                color: Colors.white,
-                              ),
+                              Icon(Icons.cloud, color: Colors.white),
                               SizedBox(width: 8),
                               Text(
                                 'Cuaca Saat Ini',
