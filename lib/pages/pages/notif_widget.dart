@@ -1,20 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import '/services/notifikasi_service.dart';
 
 /// ==============================
-/// 🔴 BADGE NOTIF (ANTI SPAM)
+/// 🔴 BADGE NOTIF (REALTIME)
 /// ==============================
-class NotifBadge extends StatefulWidget {
+class NotifBadge extends StatelessWidget {
   const NotifBadge({super.key});
-
-  @override
-  State<NotifBadge> createState() => _NotifBadgeState();
-}
-
-class _NotifBadgeState extends State<NotifBadge> {
-  final Set<String> shownNotif = {};
 
   @override
   Widget build(BuildContext context) {
@@ -28,23 +20,15 @@ class _NotifBadgeState extends State<NotifBadge> {
       stream: ref.onValue,
       builder: (context, snapshot) {
         int unread = 0;
+
         final data = snapshot.data?.snapshot.value;
 
         if (data is Map) {
           data.forEach((key, item) {
             if (item is Map) {
-              final isRead = item['isRead'] == true;
-
-              if (!isRead && !shownNotif.contains(key)) {
-                shownNotif.add(key);
-
-                NotificationService.showNotification(
-                  item['title'] ?? '',
-                  item['body'] ?? '',
-                );
+              if (item['isRead'] != true) {
+                unread++;
               }
-
-              if (!isRead) unread++;
             }
           });
         }
@@ -62,6 +46,8 @@ class _NotifBadgeState extends State<NotifBadge> {
                 );
               },
             ),
+
+            /// 🔴 BADGE
             if (unread > 0)
               Positioned(
                 right: 6,
@@ -91,8 +77,37 @@ class _NotifBadgeState extends State<NotifBadge> {
 /// ==============================
 /// 🔔 HALAMAN NOTIF
 /// ==============================
-class NotifikasiPage extends StatelessWidget {
+class NotifikasiPage extends StatefulWidget {
   const NotifikasiPage({super.key});
+
+  @override
+  State<NotifikasiPage> createState() => _NotifikasiPageState();
+}
+
+class _NotifikasiPageState extends State<NotifikasiPage> {
+  @override
+  void initState() {
+    super.initState();
+    tandaiSemuaSudahDibaca(); // 🔥 otomatis hilang badge saat dibuka
+  }
+
+  void tandaiSemuaSudahDibaca() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final ref =
+        FirebaseDatabase.instance.ref('notifications/${user.uid}/items');
+
+    final snapshot = await ref.get();
+
+    if (snapshot.value is Map) {
+      final data = snapshot.value as Map;
+
+      for (var key in data.keys) {
+        await ref.child(key).update({'isRead': true});
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -132,8 +147,10 @@ class NotifikasiPage extends StatelessWidget {
             }
           });
 
+          /// 🔥 SORT TERBARU DI ATAS
           items.sort(
-              (a, b) => (b['time'] as String).compareTo(a['time'] as String));
+            (a, b) => (b['time'] as String).compareTo(a['time'] as String),
+          );
 
           return ListView.builder(
             itemCount: items.length,
@@ -159,7 +176,7 @@ class NotifikasiPage extends StatelessWidget {
 }
 
 /// ==============================
-/// 🔔 KIRIM NOTIF
+/// 🔔 FUNGSI KIRIM NOTIF
 /// ==============================
 Future<void> kirimNotifikasi(String title, String body) async {
   final user = FirebaseAuth.instance.currentUser;

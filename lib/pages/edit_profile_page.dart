@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'pages/change_password.dart'; // ⬅️ pastikan file ini ada
 import 'pages/notif_widget.dart';
 
 class EditProfilePage extends StatefulWidget {
@@ -15,15 +16,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final phoneController = TextEditingController();
   final alamatController = TextEditingController();
 
-  final currentPasswordController = TextEditingController();
-  final newPasswordController = TextEditingController();
-  final confirmPasswordController = TextEditingController();
-
   bool isLoading = false;
-
-  bool showCurrent = false;
-  bool showNew = false;
-  bool showConfirm = false;
 
   @override
   void initState() {
@@ -35,9 +28,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   void dispose() {
     phoneController.dispose();
     alamatController.dispose();
-    currentPasswordController.dispose();
-    newPasswordController.dispose();
-    confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -69,31 +59,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // 🔐 re-auth
-      if (currentPasswordController.text.isNotEmpty) {
-        final credential = EmailAuthProvider.credential(
-          email: user.email!,
-          password: currentPasswordController.text.trim(),
-        );
-
-        await user.reauthenticateWithCredential(credential);
-      }
-
-      // 🔑 update password
-      if (newPasswordController.text.isNotEmpty) {
-        if (newPasswordController.text != confirmPasswordController.text) {
-          showMsg("Password tidak cocok");
-          return;
-        }
-
-        await user.updatePassword(newPasswordController.text.trim());
-      }
-
-      // 🔥 FIX DI SINI (PENTING BANGET)
+      // 🔥 UPDATE FIRESTORE (REALTIME FIX)
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'phone': phoneController.text.trim(),
         'alamat': alamatController.text.trim(),
-      }, SetOptions(merge: true)); // ⭐ INI KUNCINYA
+      }, SetOptions(merge: true));
 
       await kirimNotifikasi(
         "Profil Diperbarui",
@@ -150,49 +120,67 @@ class _EditProfilePageState extends State<EditProfilePage> {
             children: [
               const Text(
                 "Informasi Akun",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
+
               _buildInput(
                 label: "Email",
                 icon: Icons.email,
                 controller: TextEditingController(text: email),
                 enabled: false,
               ),
+
               _buildInput(
                 label: "Nomor Telepon",
                 icon: Icons.phone,
                 controller: phoneController,
               ),
+
               _buildInput(
                 label: "Alamat",
                 icon: Icons.location_on,
                 controller: alamatController,
                 maxLines: 3,
               ),
+
               const SizedBox(height: 20),
-              _buildPassword(
-                "Password Saat Ini",
-                currentPasswordController,
-                showCurrent,
-                () => setState(() => showCurrent = !showCurrent),
+
+              /// 🔐 PINDAH KE HALAMAN PASSWORD
+              TextButton(
+                onPressed: () async {
+                  final confirm = await showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text("Konfirmasi"),
+                      content: const Text("Serius mau ganti password?"),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text("Batal"),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text("Ya"),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirm == true) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ChangePasswordPage(),
+                      ),
+                    );
+                  }
+                },
+                child: const Text("Ganti Password"),
               ),
-              _buildPassword(
-                "Password Baru",
-                newPasswordController,
-                showNew,
-                () => setState(() => showNew = !showNew),
-              ),
-              _buildPassword(
-                "Konfirmasi Password",
-                confirmPasswordController,
-                showConfirm,
-                () => setState(() => showConfirm = !showConfirm),
-              ),
-              const SizedBox(height: 25),
+
+              const SizedBox(height: 10),
+
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -241,42 +229,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
           maxLines: maxLines,
           decoration: InputDecoration(
             prefixIcon: Icon(icon),
-            filled: true,
-            fillColor: const Color(0xffF1F4F9),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-      ],
-    );
-  }
-
-  Widget _buildPassword(
-    String label,
-    TextEditingController controller,
-    bool visible,
-    VoidCallback toggle,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(fontSize: 13, color: Colors.black54)),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          obscureText: !visible,
-          decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.lock),
-            suffixIcon: IconButton(
-              icon: Icon(
-                visible ? Icons.visibility : Icons.visibility_off,
-              ),
-              onPressed: toggle,
-            ),
             filled: true,
             fillColor: const Color(0xffF1F4F9),
             border: OutlineInputBorder(

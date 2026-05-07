@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:irigasi_cerdas_baru/pages/pages/grafik_page.dart';
 
 class RiwayatPage extends StatefulWidget {
   const RiwayatPage({super.key});
@@ -83,6 +84,27 @@ class _RiwayatPageState extends State<RiwayatPage> {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         elevation: 0,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'grafik') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const GrafikPage(),
+                  ),
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'grafik',
+                child: Text('Lihat Grafik'),
+              ),
+            ],
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // ⭐ TAMBAHAN
+
 import 'package:irigasi_cerdas_baru/pages/riwayat_page.dart';
-import 'package:irigasi_cerdas_baru/pages/akun_page.dart';
 import 'package:irigasi_cerdas_baru/pages/profile_screen.dart';
 import 'home_page.dart';
 import 'notifikasi_page.dart';
@@ -25,13 +26,23 @@ class _MainScreenState extends State<MainScreen> {
     const ProfileScreen(),
   ];
 
+  /// 🔥 FIX: pakai UID user
+  DatabaseReference getNotifRef() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return FirebaseDatabase.instance.ref('notifications/dummy/items');
+    }
+    return FirebaseDatabase.instance.ref('notifications/${user.uid}/items');
+  }
+
+  /// 🔥 FIX: tandai semua notif sebagai read
   Future<void> markAllNotifRead() async {
-    final notifRef = FirebaseDatabase.instance.ref('notifications/items');
+    final notifRef = getNotifRef();
 
     final snapshot = await notifRef.get();
 
-    if (snapshot.exists) {
-      final data = snapshot.value as Map<dynamic, dynamic>;
+    if (snapshot.exists && snapshot.value is Map) {
+      final data = Map<dynamic, dynamic>.from(snapshot.value as Map);
 
       for (var item in data.entries) {
         await notifRef.child(item.key).update({
@@ -43,7 +54,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final notifRef = FirebaseDatabase.instance.ref('notifications/items');
+    final notifRef = getNotifRef(); // ⭐ FIX
 
     return Scaffold(
       body: IndexedStack(
@@ -56,7 +67,8 @@ class _MainScreenState extends State<MainScreen> {
           int unreadCount = 0;
 
           if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-            final raw = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+            final raw = Map<dynamic, dynamic>.from(
+                snapshot.data!.snapshot.value as Map);
 
             raw.forEach((key, value) {
               final item = Map<dynamic, dynamic>.from(value);
@@ -75,7 +87,7 @@ class _MainScreenState extends State<MainScreen> {
                 selectedIndex = i;
               });
 
-              // 🔥 Kalau klik notif, badge hilang
+              /// 🔥 kalau klik notif → hapus badge
               if (i == 2) {
                 await markAllNotifRead();
               }
@@ -89,6 +101,8 @@ class _MainScreenState extends State<MainScreen> {
                 icon: Icon(Icons.history),
                 label: 'Riwayat',
               ),
+
+              /// 🔴 BADGE NOTIF
               BottomNavigationBarItem(
                 icon: Stack(
                   children: [
@@ -98,11 +112,18 @@ class _MainScreenState extends State<MainScreen> {
                         right: 0,
                         top: 0,
                         child: Container(
-                          width: 10,
-                          height: 10,
+                          padding: const EdgeInsets.all(4),
                           decoration: const BoxDecoration(
                             color: Colors.red,
                             shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            unreadCount > 9 ? '9+' : unreadCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
@@ -110,6 +131,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 label: 'Notif',
               ),
+
               const BottomNavigationBarItem(
                 icon: Icon(Icons.cloud),
                 label: 'Cuaca',

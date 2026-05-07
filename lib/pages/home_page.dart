@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:irigasi_cerdas_baru/firebase_options.dart';
+import 'package:irigasi_cerdas_baru/pages/schedule.dart';
 import 'package:irigasi_cerdas_baru/services/weather_service.dart';
 import 'package:irigasi_cerdas_baru/services/pump_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -357,6 +358,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ),
             const SizedBox(height: 16),
+            // =======================
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -374,30 +376,104 @@ class _DashboardPageState extends State<DashboardPage> {
                         fontSize: 15,
                       ),
                     ),
-                    const SizedBox(height: 10),
+
+                    const SizedBox(height: 12),
+
+                    // =========================
+                    // MODE SEJAJAR (FIXED)
+                    // =========================
                     Row(
                       children: [
-                        ChoiceChip(
-                          label: const Text("Otomatis"),
-                          selected: mode == "Otomatis",
-                          onSelected: (val) {
-                            dbRef.child('control/mode').set(
-                                  val ? "Otomatis" : "Manual",
-                                );
-                          },
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              dbRef.child('control/mode').set("Otomatis");
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: mode == "Otomatis"
+                                    ? Colors.green
+                                    : Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  "Otomatis",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: const Text("Manual"),
-                          selected: mode == "Manual",
-                          onSelected: (val) {
-                            dbRef.child('control/mode').set(
-                                  val ? "Manual" : "Otomatis",
-                                );
-                          },
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              dbRef.child('control/mode').set("Manual");
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: mode == "Manual"
+                                    ? Colors.blue
+                                    : Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  "Manual",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              dbRef.child('control/mode').set("Jadwal");
+
+                              // ⭐ INI YANG HILANG SEBELUMNYA
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SchedulePage(),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: mode == "Jadwal"
+                                    ? Colors.orange
+                                    : Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  "Jadwal",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
+                    // =========================
+                    // MANUAL CONTROL
+                    // =========================
                     if (mode == "Manual") ...[
                       const SizedBox(height: 16),
                       SizedBox(
@@ -414,7 +490,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             ),
                             child: Column(
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.power_settings_new,
                                   size: 40,
                                   color: Colors.white,
@@ -435,6 +511,18 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                       ),
                     ],
+
+                    // =========================
+                    // INFO MODE AKTIF
+                    // =========================
+                    const SizedBox(height: 12),
+                    Text(
+                      "Mode aktif: $mode",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
                   ],
                 ),
               ),
