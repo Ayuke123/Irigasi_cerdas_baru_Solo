@@ -9,16 +9,19 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
   firebase_core: ^2.21.0
   firebase_auth: ^4.6.3
-  firebase_messaging: ^14.0.0 
+  firebase_messaging: ^14.0.0
   cloud_firestore: ^4.13.0
   http: ^1.2.1
   firebase_database: ^10.5.7
   intl: ^0.20.2
   flutter_local_notifications: ^17.0.0
   fl_chart: ^0.68.0
-   
+
+  flutter_blue_plus: ^1.32.8
+  permission_handler: ^11.3.1
 
 dev_dependencies:
   flutter_test:

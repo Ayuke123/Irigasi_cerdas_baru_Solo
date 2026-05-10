@@ -4,12 +4,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:irigasi_cerdas_baru/firebase_options.dart';
 import 'package:irigasi_cerdas_baru/pages/schedule.dart';
+import 'package:irigasi_cerdas_baru/pages/connect_device_page.dart';
 import 'package:irigasi_cerdas_baru/services/weather_service.dart';
 import 'package:irigasi_cerdas_baru/services/pump_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,13 +35,13 @@ class MyApp extends StatelessWidget {
 }
 
 class DashboardPage extends StatefulWidget {
+  const DashboardPage({super.key});
+
   @override
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  TextEditingController alamatController = TextEditingController();
-
   final DatabaseReference dbRef = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
     databaseURL:
@@ -53,8 +53,6 @@ class _DashboardPageState extends State<DashboardPage> {
   StreamSubscription<DatabaseEvent>? _liveSub;
   StreamSubscription<DatabaseEvent>? _pumpSub;
   StreamSubscription<DatabaseEvent>? _modeSub;
-
-  // ⭐ PINDAHAN DARI LUAR CLASS
   StreamSubscription<DocumentSnapshot>? _weatherSub;
 
   String pumpStatus = "OFF";
@@ -71,7 +69,8 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    listenWeatherRealtime(); // ⭐ SUDAH DIGANTI
+
+    listenWeatherRealtime();
     loadFirebaseData();
 
     _pumpService = PumpService(dbRef);
@@ -81,18 +80,21 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void dispose() {
     _pumpService?.stop();
+
     _liveSub?.cancel();
     _pumpSub?.cancel();
     _modeSub?.cancel();
-    _weatherSub?.cancel(); // ⭐ TAMBAHAN
+    _weatherSub?.cancel();
+
     super.dispose();
   }
 
   // ==============================
-  // ⭐ REALTIME WEATHER
+  // WEATHER REALTIME
   // ==============================
   void listenWeatherRealtime() {
     final user = FirebaseAuth.instance.currentUser;
+
     if (user == null) return;
 
     _weatherSub = FirebaseFirestore.instance
@@ -100,27 +102,35 @@ class _DashboardPageState extends State<DashboardPage> {
         .doc(user.uid)
         .snapshots()
         .listen((doc) async {
-      if (doc.exists) {
-        String alamat = doc.data()?['alamat'] ?? "Makassar";
+      if (!doc.exists) return;
 
-        try {
-          final result = await WeatherService().getWeatherByAddress(alamat);
+      String alamat = doc.data()?['alamat'] ?? "Makassar";
 
-          if (!mounted) return;
+      try {
+        final result = await WeatherService().getWeatherByAddress(alamat);
 
-          setState(() {
-            suhu = "${result.current.temperature.toStringAsFixed(0)}°C";
-            lokasi = result.current.cityName;
-          });
-        } catch (e) {
-          debugPrint("Weather error: $e");
-        }
+        if (!mounted) return;
+
+        setState(() {
+          suhu = "${result.current.temperature.toStringAsFixed(0)}°C";
+
+          lokasi = result.current.cityName;
+        });
+      } catch (e) {
+        debugPrint("Weather Error: $e");
       }
     });
   }
 
+  // ==============================
+  // LOAD FIREBASE
+  // ==============================
   void loadFirebaseData() {
+    // =========================
+    // LIVE SENSOR
+    // =========================
     _liveSub?.cancel();
+
     _liveSub = dbRef.child('live').onValue.listen((event) {
       if (!event.snapshot.exists) return;
 
@@ -128,9 +138,13 @@ class _DashboardPageState extends State<DashboardPage> {
         event.snapshot.value as Map,
       );
 
+      if (!mounted) return;
+
       setState(() {
         soilStatus = data['status'].toString();
+
         soilValue = int.tryParse(data['value'].toString()) ?? 0;
+
         pumpStatus = data['pump_state'].toString();
 
         if (soilData.length > 10) {
@@ -146,18 +160,46 @@ class _DashboardPageState extends State<DashboardPage> {
       });
     });
 
+    // =========================
+    // PUMP CONTROL
+    // =========================
     _pumpSub?.cancel();
+
     _pumpSub = dbRef.child('control/pump').onValue.listen((event) {
       if (!event.snapshot.exists) return;
 
+      final value = event.snapshot.value;
+
+      if (!mounted) return;
+
       setState(() {
-        pumpValue = event.snapshot.value as bool;
+        // SUPPORT BOOL
+        if (value is bool) {
+          pumpValue = value;
+        }
+
+        // SUPPORT STRING
+        else if (value is String) {
+          pumpValue =
+              value.toUpperCase() == "ON" || value.toLowerCase() == "true";
+        }
+
+        // DEFAULT
+        else {
+          pumpValue = false;
+        }
       });
     });
 
+    // =========================
+    // MODE CONTROL
+    // =========================
     _modeSub?.cancel();
+
     _modeSub = dbRef.child('control/mode').onValue.listen((event) {
       if (!event.snapshot.exists) return;
+
+      if (!mounted) return;
 
       setState(() {
         mode = event.snapshot.value.toString();
@@ -165,38 +207,22 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
-  // ❗ TIDAK DIHAPUS (sesuai request kamu)
-  Future<void> loadWeather() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      String alamat = "Makassar";
-
-      if (user != null) {
-        final doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
-
-        if (doc.exists) {
-          alamat = doc.data()?['alamat'] ?? "Makassar";
-        }
-      }
-
-      final result = await WeatherService().getWeatherByAddress(alamat);
-
-      setState(() {
-        suhu = "${result.current.temperature.toStringAsFixed(0)}°C";
-        lokasi = result.current.cityName;
-      });
-    } catch (e) {
-      debugPrint(e.toString());
-    }
-  }
-
+  // ==============================
+  // COLOR STATUS
+  // ==============================
   Color getSoilColor() {
-    if (soilStatus == "Kering") return Colors.red;
-    if (soilStatus == "Lembap") return Colors.orange;
-    if (soilStatus == "Basah") return Colors.green;
+    if (soilStatus == "Kering") {
+      return Colors.red;
+    }
+
+    if (soilStatus == "Lembap") {
+      return Colors.orange;
+    }
+
+    if (soilStatus == "Basah") {
+      return Colors.green;
+    }
+
     return Colors.blue;
   }
 
@@ -210,13 +236,63 @@ class _DashboardPageState extends State<DashboardPage> {
         foregroundColor: Colors.black,
         title: const Text(
           "Hallo!",
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // =========================
+            // CONNECT DEVICE
+            // =========================
+            Card(
+              elevation: 5,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ListTile(
+                leading: const Icon(
+                  Icons.bluetooth,
+                  color: Colors.blue,
+                ),
+
+                title: const Text(
+                  "Hubungkan Perangkat",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                subtitle: const Text(
+                  "Connect ESP32 secara manual",
+                ),
+
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                ),
+
+                // =========================
+                // FIX NAVIGATE
+                // =========================
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ConnectDevicePage(),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // =========================
+            // KELEMBABAN
+            // =========================
             Card(
               color: getSoilColor(),
               shape: RoundedRectangleBorder(
@@ -225,7 +301,9 @@ class _DashboardPageState extends State<DashboardPage> {
               child: ListTile(
                 title: const Text(
                   "Kelembaban Tanah",
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: Colors.white,
+                  ),
                 ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,18 +323,27 @@ class _DashboardPageState extends State<DashboardPage> {
                       minHeight: 10,
                       borderRadius: BorderRadius.circular(10),
                       backgroundColor: Colors.white24,
-                      valueColor: const AlwaysStoppedAnimation(Colors.white),
+                      valueColor: const AlwaysStoppedAnimation(
+                        Colors.white,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       "Status: $soilStatus",
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+
             const SizedBox(height: 10),
+
+            // =========================
+            // WEATHER
+            // =========================
             Card(
               color: Colors.amber,
               shape: RoundedRectangleBorder(
@@ -265,7 +352,9 @@ class _DashboardPageState extends State<DashboardPage> {
               child: ListTile(
                 title: const Text(
                   "Cuaca",
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: Colors.white,
+                  ),
                 ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -281,13 +370,20 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                     Text(
                       lokasi,
-                      style: const TextStyle(color: Colors.white70),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+
             const SizedBox(height: 10),
+
+            // =========================
+            // STATUS POMPA
+            // =========================
             Card(
               color: Colors.grey,
               shape: RoundedRectangleBorder(
@@ -296,7 +392,9 @@ class _DashboardPageState extends State<DashboardPage> {
               child: ListTile(
                 title: const Text(
                   "Status Pompa",
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: Colors.white,
+                  ),
                 ),
                 subtitle: Row(
                   children: [
@@ -311,17 +409,22 @@ class _DashboardPageState extends State<DashboardPage> {
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
-                    )
+                    ),
                   ],
                 ),
               ),
             ),
+
             const SizedBox(height: 16),
+
+            // =========================
+            // GRAFIK
+            // =========================
             Card(
+              elevation: 5,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              elevation: 5,
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -357,13 +460,17 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
             ),
+
             const SizedBox(height: 16),
-            // =======================
+
+            // =========================
+            // KONTROL POMPA
+            // =========================
             Card(
+              elevation: 5,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              elevation: 5,
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -380,7 +487,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SizedBox(height: 12),
 
                     // =========================
-                    // MODE SEJAJAR (FIXED)
+                    // MODE
                     // =========================
                     Row(
                       children: [
@@ -390,12 +497,16 @@ class _DashboardPageState extends State<DashboardPage> {
                               dbRef.child('control/mode').set("Otomatis");
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: mode == "Otomatis"
                                     ? Colors.green
                                     : Colors.grey.shade300,
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(
+                                  12,
+                                ),
                               ),
                               child: const Center(
                                 child: Text(
@@ -416,12 +527,16 @@ class _DashboardPageState extends State<DashboardPage> {
                               dbRef.child('control/mode').set("Manual");
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: mode == "Manual"
                                     ? Colors.blue
                                     : Colors.grey.shade300,
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(
+                                  12,
+                                ),
                               ),
                               child: const Center(
                                 child: Text(
@@ -441,7 +556,6 @@ class _DashboardPageState extends State<DashboardPage> {
                             onTap: () {
                               dbRef.child('control/mode').set("Jadwal");
 
-                              // ⭐ INI YANG HILANG SEBELUMNYA
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -450,12 +564,16 @@ class _DashboardPageState extends State<DashboardPage> {
                               );
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: mode == "Jadwal"
                                     ? Colors.orange
                                     : Colors.grey.shade300,
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(
+                                  12,
+                                ),
                               ),
                               child: const Center(
                                 child: Text(
@@ -471,8 +589,9 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                       ],
                     ),
+
                     // =========================
-                    // MANUAL CONTROL
+                    // MANUAL BUTTON
                     // =========================
                     if (mode == "Manual") ...[
                       const SizedBox(height: 16),
@@ -480,13 +599,17 @@ class _DashboardPageState extends State<DashboardPage> {
                         width: double.infinity,
                         child: InkWell(
                           onTap: () {
-                            dbRef.child('control/pump').set(!pumpValue);
+                            dbRef.child('control/pump').set(
+                                  pumpValue ? "OFF" : "ON",
+                                );
                           },
                           child: Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
                               color: pumpValue ? Colors.green : Colors.grey,
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(
+                                20,
+                              ),
                             ),
                             child: Column(
                               children: [
@@ -512,10 +635,8 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                     ],
 
-                    // =========================
-                    // INFO MODE AKTIF
-                    // =========================
                     const SizedBox(height: 12),
+
                     Text(
                       "Mode aktif: $mode",
                       style: const TextStyle(

@@ -15,20 +15,19 @@ class _SchedulePageState extends State<SchedulePage> {
   final TextEditingController minuteController = TextEditingController();
   final TextEditingController durationController = TextEditingController();
 
-  // ➕ SIMPAN JADWAL (FIXED)
   void addSchedule() {
     String hour = hourController.text.trim();
     String minute = minuteController.text.trim();
 
-    if (hour.isEmpty || minute.isEmpty || durationController.text.isEmpty)
+    if (hour.isEmpty || minute.isEmpty || durationController.text.isEmpty) {
       return;
+    }
 
-    // pastikan format 2 digit
     String time = "${hour.padLeft(2, '0')}:${minute.padLeft(2, '0')}";
 
     ref.push().set({
-      "time": time, // ✔ STRING AMAN
-      "duration": int.tryParse(durationController.text) ?? 0, // ✔ INT AMAN
+      "time": time,
+      "duration": int.tryParse(durationController.text) ?? 0,
       "active": true,
     });
 
@@ -48,191 +47,224 @@ class _SchedulePageState extends State<SchedulePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
+      backgroundColor: const Color(0xffF5F7FB),
       appBar: AppBar(
-        title: const Text("Penjadwalan"),
-        centerTitle: true,
+        title: const Text(
+          "Penjadwalan",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          // ================= INPUT =================
-          Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
-                BoxShadow(color: Colors.black12, blurRadius: 8),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Tambah Jadwal",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // ================= INPUT CARD =================
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
+                    )
+                  ],
                 ),
-
-                const SizedBox(height: 12),
-
-                // JAM & MENIT
-                Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: hourController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: "Jam (00-23)",
-                          border: OutlineInputBorder(),
+                    const Text(
+                      "Tambah Jadwal",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // JAM & MENIT
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: hourController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: "Jam",
+                              hintText: "07",
+                              filled: true,
+                              fillColor: const Color(0xffF1F4F9),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: minuteController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: "Menit",
+                              hintText: "15",
+                              filled: true,
+                              fillColor: const Color(0xffF1F4F9),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: durationController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: "Durasi (menit)",
+                        filled: true,
+                        fillColor: const Color(0xffF1F4F9),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: minuteController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: "Menit (00-59)",
-                          border: OutlineInputBorder(),
+
+                    const SizedBox(height: 16),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: addSchedule,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              const Color.fromARGB(255, 90, 158, 227),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          "Simpan Jadwal",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
+              ),
 
-                const SizedBox(height: 10),
+              const SizedBox(height: 20),
 
-                TextField(
-                  controller: durationController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: "Durasi (menit)",
-                    border: OutlineInputBorder(),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Daftar Jadwal",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
-                ),
-
-                const SizedBox(height: 12),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: addSchedule,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 61, 149, 208),
-                      padding: const EdgeInsets.all(14),
-                    ),
-                    child: const Text("Simpan"),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const Padding(
-            padding: EdgeInsets.only(left: 16, bottom: 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "Daftar Jadwal",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
                 ),
               ),
-            ),
-          ),
 
-          // ================= LIST =================
-          Expanded(
-            child: StreamBuilder(
-              stream: ref.onValue,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData ||
-                    snapshot.data!.snapshot.value == null) {
-                  return const Center(
-                    child: Text("Belum ada jadwal"),
-                  );
-                }
+              const SizedBox(height: 10),
 
-                final data = Map<String, dynamic>.from(
-                  snapshot.data!.snapshot.value as Map,
-                );
-
-                return ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  children: data.entries.map((e) {
-                    final key = e.key;
-                    final item = Map<String, dynamic>.from(e.value);
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 6,
-                          )
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.schedule,
-                            color: (item["active"] == true)
-                                ? const Color.fromARGB(255, 126, 187, 228)
-                                : Colors.grey,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // ✔ FIX ERROR TYPE INT/STRING
-                                Text(
-                                  item["time"].toString(),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-
-                                Text(
-                                  "Durasi: ${item["duration"].toString()} menit",
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: item["active"] == true,
-                            onChanged: (val) => toggle(key, val),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => delete(key),
-                          ),
-                        ],
-                      ),
+              // ================= LIST =================
+              StreamBuilder(
+                stream: ref.onValue,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData ||
+                      snapshot.data!.snapshot.value == null) {
+                    return const Padding(
+                      padding: EdgeInsets.only(top: 40),
+                      child: Text("Belum ada jadwal"),
                     );
-                  }).toList(),
-                );
-              },
-            ),
+                  }
+
+                  final data = Map<String, dynamic>.from(
+                    snapshot.data!.snapshot.value as Map,
+                  );
+
+                  return Column(
+                    children: data.entries.map((e) {
+                      final key = e.key;
+                      final item = Map<String, dynamic>.from(e.value);
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            )
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.schedule,
+                              color: item["active"] == true
+                                  ? Colors.green
+                                  : Colors.grey,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item["time"].toString(),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  Text(
+                                    "Durasi: ${item["duration"]} menit",
+                                    style: const TextStyle(color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: item["active"] == true,
+                              onChanged: (val) => toggle(key, val),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => delete(key),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
