@@ -9,39 +9,67 @@ class SchedulePage extends StatefulWidget {
 }
 
 class _SchedulePageState extends State<SchedulePage> {
-  final DatabaseReference ref = FirebaseDatabase.instance.ref("schedule/items");
+  final DatabaseReference ref = FirebaseDatabase.instance.ref("schedule/item");
+
+  final TextEditingController dateController = TextEditingController();
 
   final TextEditingController hourController = TextEditingController();
+
   final TextEditingController minuteController = TextEditingController();
+
   final TextEditingController durationController = TextEditingController();
 
+  // =========================
+  // ADD / UPDATE SCHEDULE
+  // =========================
   void addSchedule() {
     String hour = hourController.text.trim();
     String minute = minuteController.text.trim();
+    String date = dateController.text.trim();
 
-    if (hour.isEmpty || minute.isEmpty || durationController.text.isEmpty) {
+    if (hour.isEmpty ||
+        minute.isEmpty ||
+        durationController.text.isEmpty ||
+        date.isEmpty) {
       return;
     }
 
     String time = "${hour.padLeft(2, '0')}:${minute.padLeft(2, '0')}";
 
-    ref.push().set({
+    // HANYA 1 JADWAL
+    ref.set({
+      "date": date,
       "time": time,
       "duration": int.tryParse(durationController.text) ?? 0,
       "active": true,
     });
 
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Jadwal berhasil disimpan"),
+      ),
+    );
+
+    dateController.clear();
     hourController.clear();
     minuteController.clear();
     durationController.clear();
   }
 
-  void toggle(String key, bool value) {
-    ref.child(key).update({"active": value});
+  // =========================
+  // TOGGLE ACTIVE
+  // =========================
+  void toggle(bool value) {
+    ref.update({
+      "active": value,
+    });
   }
 
-  void delete(String key) {
-    ref.child(key).remove();
+  // =========================
+  // DELETE
+  // =========================
+  void deleteSchedule() {
+    ref.remove();
   }
 
   @override
@@ -51,7 +79,9 @@ class _SchedulePageState extends State<SchedulePage> {
       appBar: AppBar(
         title: const Text(
           "Penjadwalan",
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
@@ -62,7 +92,9 @@ class _SchedulePageState extends State<SchedulePage> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // ================= INPUT CARD =================
+              // =========================
+              // INPUT CARD
+              // =========================
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -86,9 +118,48 @@ class _SchedulePageState extends State<SchedulePage> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+
                     const SizedBox(height: 16),
 
-                    // JAM & MENIT
+                    // =========================
+                    // TANGGAL
+                    // =========================
+                    TextField(
+                      controller: dateController,
+                      readOnly: true,
+                      decoration: InputDecoration(
+                        labelText: "Tanggal",
+                        hintText: "Pilih tanggal",
+                        filled: true,
+                        fillColor: const Color(0xffF1F4F9),
+                        suffixIcon: const Icon(Icons.calendar_today),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      onTap: () async {
+                        DateTime? picked = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime(2035),
+                        );
+
+                        if (picked != null) {
+                          setState(() {
+                            dateController.text =
+                                "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+                          });
+                        }
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // =========================
+                    // JAM MENIT
+                    // =========================
                     Row(
                       children: [
                         Expanded(
@@ -129,6 +200,9 @@ class _SchedulePageState extends State<SchedulePage> {
 
                     const SizedBox(height: 12),
 
+                    // =========================
+                    // DURASI
+                    // =========================
                     TextField(
                       controller: durationController,
                       keyboardType: TextInputType.number,
@@ -145,6 +219,9 @@ class _SchedulePageState extends State<SchedulePage> {
 
                     const SizedBox(height: 16),
 
+                    // =========================
+                    // BUTTON
+                    // =========================
                     SizedBox(
                       width: double.infinity,
                       height: 50,
@@ -172,10 +249,13 @@ class _SchedulePageState extends State<SchedulePage> {
 
               const SizedBox(height: 20),
 
+              // =========================
+              // TITLE
+              // =========================
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  "Daftar Jadwal",
+                  "Jadwal Aktif",
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -185,7 +265,9 @@ class _SchedulePageState extends State<SchedulePage> {
 
               const SizedBox(height: 10),
 
-              // ================= LIST =================
+              // =========================
+              // LIST
+              // =========================
               StreamBuilder(
                 stream: ref.onValue,
                 builder: (context, snapshot) {
@@ -197,68 +279,70 @@ class _SchedulePageState extends State<SchedulePage> {
                     );
                   }
 
-                  final data = Map<String, dynamic>.from(
+                  final item = Map<String, dynamic>.from(
                     snapshot.data!.snapshot.value as Map,
                   );
 
-                  return Column(
-                    children: data.entries.map((e) {
-                      final key = e.key;
-                      final item = Map<String, dynamic>.from(e.value);
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            )
-                          ],
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        )
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.schedule,
+                          color: item["active"] == true
+                              ? Colors.green
+                              : Colors.grey,
                         ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.schedule,
-                              color: item["active"] == true
-                                  ? Colors.green
-                                  : Colors.grey,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item["time"].toString(),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  Text(
-                                    "Durasi: ${item["duration"]} menit",
-                                    style: const TextStyle(color: Colors.grey),
-                                  ),
-                                ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item["date"].toString(),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
-                            ),
-                            Switch(
-                              value: item["active"] == true,
-                              onChanged: (val) => toggle(key, val),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => delete(key),
-                            ),
-                          ],
+                              Text(
+                                item["time"].toString(),
+                              ),
+                              Text(
+                                "Durasi: ${item["duration"]} menit",
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      );
-                    }).toList(),
+                        Switch(
+                          value: item["active"] == true,
+                          onChanged: (val) {
+                            toggle(val);
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete,
+                            color: Colors.red,
+                          ),
+                          onPressed: deleteSchedule,
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),
