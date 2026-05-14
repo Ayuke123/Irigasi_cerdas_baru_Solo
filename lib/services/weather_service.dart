@@ -57,14 +57,62 @@ class WeatherResult {
   });
 }
 
+class LocationResult {
+  final double lat;
+  final double lon;
+
+  LocationResult({
+    required this.lat,
+    required this.lon,
+  });
+
+  factory LocationResult.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return LocationResult(
+      lat: (json['lat'] as num).toDouble(),
+      lon: (json['lon'] as num).toDouble(),
+    );
+  }
+}
+
 class WeatherService {
-  static const String _apiKey =
-      '0ac1d5763cb4df6930a558e774fdf09a'; // Ganti dengan API key OpenWeather
+  // ================= API =================
+  static const String _apiKey = '0ac1d5763cb4df6930a558e774fdf09a';
+
   static const String _baseUrl =
       'https://api.openweathermap.org/data/2.5/weather';
+
   static const String _forecastUrl =
       'https://api.openweathermap.org/data/2.5/forecast';
 
+  // ================= NORMALIZE KOTA =================
+  String normalizeCity(String city) {
+    switch (city.toLowerCase().trim()) {
+      case 'lampung':
+        return 'Bandar Lampung';
+
+      case 'jogja':
+        return 'Yogyakarta';
+
+      case 'solo':
+        return 'Surakarta';
+
+      case 'makasar':
+        return 'Makassar';
+
+      case 'bandung':
+        return 'Bandung';
+
+      case 'semarang':
+        return 'Semarang';
+
+      default:
+        return city;
+    }
+  }
+
+  // ================= CURRENT WEATHER =================
   Future<WeatherData> getCurrentWeather({
     required double lat,
     required double lon,
@@ -77,12 +125,16 @@ class WeatherService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
+
       return WeatherData.fromJson(data);
     } else {
-      throw Exception('Failed to load weather');
+      throw Exception(
+        'Gagal mengambil cuaca',
+      );
     }
   }
 
+  // ================= FORECAST =================
   Future<List<ForecastData>> get3DayForecast({
     required double lat,
     required double lon,
@@ -94,21 +146,39 @@ class WeatherService {
     final response = await http.get(uri);
 
     if (response.statusCode != 200) {
-      throw Exception('Failed to load forecast');
+      throw Exception(
+        'Gagal mengambil forecast',
+      );
     }
 
     final data = jsonDecode(response.body);
+
     final List list = data['list'];
 
-    return list.map((item) => ForecastData.fromJson(item)).toList();
+    return list
+        .map(
+          (item) => ForecastData.fromJson(item),
+        )
+        .toList();
   }
 
-  Future<WeatherResult> getWeatherByAddress(String address) async {
-    final location = await getCoordinatesFromAddress(address);
-    final current =
-        await getCurrentWeather(lat: location.lat, lon: location.lon);
-    final forecast =
-        await get3DayForecast(lat: location.lat, lon: location.lon);
+  // ================= WEATHER BY ADDRESS =================
+  Future<WeatherResult> getWeatherByAddress(
+    String address,
+  ) async {
+    final location = await getCoordinatesFromAddress(
+      address,
+    );
+
+    final current = await getCurrentWeather(
+      lat: location.lat,
+      lon: location.lon,
+    );
+
+    final forecast = await get3DayForecast(
+      lat: location.lat,
+      lon: location.lon,
+    );
 
     return WeatherResult(
       current: current,
@@ -116,39 +186,73 @@ class WeatherService {
     );
   }
 
-  Future<LocationResult> getCoordinatesFromAddress(String address) async {
+  // ================= GET COORDINATES =================
+  Future<LocationResult> getCoordinatesFromAddress(
+    String address,
+  ) async {
+    // ================= NORMALISASI =================
+    final fixedAddress = normalizeCity(address);
+
+    // ================= REQUEST =================
     final uri = Uri.parse(
-      'https://api.openweathermap.org/geo/1.0/direct?q=$address&limit=1&appid=$_apiKey',
+      'https://api.openweathermap.org/geo/1.0/direct?q=$fixedAddress,ID&limit=5&appid=$_apiKey',
     );
 
     final response = await http.get(uri);
 
     if (response.statusCode != 200) {
-      throw Exception('Failed to load coordinates');
+      throw Exception(
+        'Gagal mengambil koordinat',
+      );
     }
 
     final data = jsonDecode(response.body);
+
     if (data is! List || data.isEmpty) {
-      throw Exception('Address not found');
+      throw Exception(
+        'Alamat tidak ditemukan',
+      );
     }
 
-    return LocationResult.fromJson(data[0]);
-  }
-}
+    // ================= FILTER INDONESIA =================
+    final indonesiaResult = data.firstWhere(
+      (item) => item['country'] == 'ID',
+      orElse: () => data[0],
+    );
 
-class LocationResult {
-  final double lat;
-  final double lon;
+    // ================= DEBUG =================
+    print(
+      "================ WEATHER DEBUG ================",
+    );
 
-  LocationResult({
-    required this.lat,
-    required this.lon,
-  });
+    print("INPUT USER : $address");
 
-  factory LocationResult.fromJson(Map<String, dynamic> json) {
-    return LocationResult(
-      lat: (json['lat'] as num).toDouble(),
-      lon: (json['lon'] as num).toDouble(),
+    print(
+      "NORMALIZED : $fixedAddress",
+    );
+
+    print(
+      "HASIL KOTA : ${indonesiaResult['name']}",
+    );
+
+    print(
+      "NEGARA : ${indonesiaResult['country']}",
+    );
+
+    print(
+      "LAT : ${indonesiaResult['lat']}",
+    );
+
+    print(
+      "LON : ${indonesiaResult['lon']}",
+    );
+
+    print(
+      "================================================",
+    );
+
+    return LocationResult.fromJson(
+      indonesiaResult,
     );
   }
 }
