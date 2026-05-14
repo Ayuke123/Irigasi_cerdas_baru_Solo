@@ -50,9 +50,13 @@ class _ConnectDevicePageState extends State<ConnectDevicePage> {
 
     scanSubscription = FlutterBluePlus.scanResults.listen((results) {
       if (!mounted) return;
-
       setState(() {
-        scanResults = results;
+        scanResults = results
+            .where((r) => r.device.platformName.isNotEmpty)
+            .toList()
+          ..sort((a, b) => a.device.platformName
+              .toLowerCase()
+              .compareTo(b.device.platformName.toLowerCase()));
       });
     });
 
@@ -73,17 +77,36 @@ class _ConnectDevicePageState extends State<ConnectDevicePage> {
     try {
       await device.connect();
 
-      if (!mounted) return;
+      List<BluetoothService> services = await device.discoverServices();
 
+      for (BluetoothService service in services) {
+        for (BluetoothCharacteristic char in service.characteristics) {
+          if (char.properties.notify) {
+            await char.setNotifyValue(true);
+            char.lastValueStream.listen((value) {
+              String response = String.fromCharCodes(value);
+              if (response == "PAIRED-OK") {
+                if (!mounted) return;
+                Navigator.pop(context);
+              }
+            });
+          }
+        }
+      }
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            "Berhasil terhubung ke ${device.platformName}",
+            "Terhubung ke ${device.platformName}, menunggu konfirmasi...",
           ),
         ),
       );
     } catch (e) {
       debugPrint("ERROR CONNECT: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Gagal terhubung, coba lagi")),
+      );
     }
   }
 

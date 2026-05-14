@@ -45,7 +45,7 @@ class _DashboardPageState extends State<DashboardPage> {
   final DatabaseReference dbRef = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
     databaseURL:
-        "https://irigasi-cerdas-baru-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "https://irigasi-cerdas-baru-default-rtdb.asia-southeast1.firebasedatabase.app",
   ).ref();
 
   PumpService? _pumpService;
@@ -53,6 +53,7 @@ class _DashboardPageState extends State<DashboardPage> {
   StreamSubscription<DatabaseEvent>? _liveSub;
   StreamSubscription<DatabaseEvent>? _pumpSub;
   StreamSubscription<DatabaseEvent>? _modeSub;
+  StreamSubscription<DatabaseEvent>? _systemSub;
   StreamSubscription<DocumentSnapshot>? _weatherSub;
 
   String pumpStatus = "OFF";
@@ -63,6 +64,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   String suhu = "-";
   String lokasi = "-";
+  String systemStatus = "booting"; // "ready" = ESP sudah pairing
 
   List<FlSpot> soilData = [];
 
@@ -84,6 +86,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _liveSub?.cancel();
     _pumpSub?.cancel();
     _modeSub?.cancel();
+    _systemSub?.cancel();
     _weatherSub?.cancel();
 
     super.dispose();
@@ -173,21 +176,17 @@ class _DashboardPageState extends State<DashboardPage> {
       if (!mounted) return;
 
       setState(() {
-        // SUPPORT BOOL
         if (value is bool) {
           pumpValue = value;
-        }
-
-        // SUPPORT STRING
-        else if (value is String) {
-          pumpValue =
-              value.toUpperCase() == "ON" || value.toLowerCase() == "true";
-        }
-
-        // DEFAULT
-        else {
+        } else if (value is String) {
+          pumpValue = value.toLowerCase() == 'true';
+        } else if (value is int) {
+          pumpValue = value == 1;
+        } else {
           pumpValue = false;
         }
+
+        pumpStatus = pumpValue ? "ON" : "OFF";
       });
     });
 
@@ -203,6 +202,23 @@ class _DashboardPageState extends State<DashboardPage> {
 
       setState(() {
         mode = event.snapshot.value.toString();
+      });
+    });
+
+    // =========================
+    // SYSTEM STATUS
+    // =========================
+    _systemSub?.cancel();
+
+    _systemSub = dbRef.child('system/status').onValue.listen((event) {
+      if (!mounted) return;
+
+      setState(() {
+        if (!event.snapshot.exists || event.snapshot.value == null) {
+          systemStatus = "booting";
+        } else {
+          systemStatus = event.snapshot.value.toString();
+        }
       });
     });
   }
@@ -241,7 +257,39 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
+      body: systemStatus != "ready"
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.bluetooth_searching, size: 64, color: Colors.blue),
+            const SizedBox(height: 16),
+            const Text(
+              "Menunggu Perangkat",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "Hubungkan ESP32 terlebih dahulu",
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ConnectDevicePage(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.bluetooth),
+              label: const Text("Hubungkan Sekarang"),
+            ),
+          ],
+        ),
+      )
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
@@ -598,10 +646,16 @@ class _DashboardPageState extends State<DashboardPage> {
                       SizedBox(
                         width: double.infinity,
                         child: InkWell(
-                          onTap: () {
-                            dbRef.child('control/pump').set(
-                                  pumpValue ? "OFF" : "ON",
-                                );
+                          onTap: () async {
+                            final newValue = !pumpValue;
+
+                            await dbRef.child('control/pump').set(newValue);
+
+                            if (!mounted) return;
+
+                            setState(() {
+                              pumpValue = newValue;
+                            });
                           },
                           child: Container(
                             padding: const EdgeInsets.all(20),
