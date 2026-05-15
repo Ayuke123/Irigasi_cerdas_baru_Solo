@@ -74,9 +74,12 @@ class _ConnectDevicePageState extends State<ConnectDevicePage> {
   }
 
   Future<void> connectToDevice(BluetoothDevice device) async {
+    bool pairingConfirmed = false;
     try {
-      await device.connect();
+      // Menghubungkan ke device
+      await device.connect(timeout: const Duration(seconds: 15));
 
+      // Mencari service dan karakteristik
       List<BluetoothService> services = await device.discoverServices();
 
       for (BluetoothService service in services) {
@@ -85,8 +88,20 @@ class _ConnectDevicePageState extends State<ConnectDevicePage> {
             await char.setNotifyValue(true);
             char.lastValueStream.listen((value) {
               String response = String.fromCharCodes(value);
+              debugPrint("BLE Response: $response");
               if (response == "PAIRED-OK") {
+                pairingConfirmed = true;
                 if (!mounted) return;
+                
+                // Beri feedback sukses
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Pairing Berhasil! Menyiapkan sistem..."),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                
+                // Langsung kembali ke home page
                 Navigator.pop(context);
               }
             });
@@ -98,15 +113,20 @@ class _ConnectDevicePageState extends State<ConnectDevicePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            "Terhubung ke ${device.platformName}, menunggu konfirmasi...",
+            "Terhubung ke ${device.platformName}, menunggu konfirmasi ESP32...",
           ),
         ),
       );
     } catch (e) {
+      // Jika error terjadi SETELAH pairingConfirmed = true, abaikan (karena ESP memutus BLE)
+      if (pairingConfirmed) return;
+
       debugPrint("ERROR CONNECT: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Gagal terhubung, coba lagi")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Gagal terhubung, coba lagi")),
+        );
+      }
     }
   }
 
