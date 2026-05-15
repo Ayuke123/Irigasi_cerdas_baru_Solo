@@ -1,12 +1,14 @@
 // ============================================================
-//  SISTEM IRIGASI OTOMATIS - v2.4
+//  SISTEM IRIGASI OTOMATIS - v2.5
 //  Perbaikan:
 //  - Firebase baca/tulis digabung (batch) → tidak blocking lama
 //  - kontrolPompa() diprioritaskan sebelum Firebase
 //  - Mode string diseragamkan: "Otomatis", "Manual", "Jadwal"
 //  - cekJadwal() interval dikurangi ke 3 detik
-//  - OLED lebih responsif
+//  - OLED redesign dengan bitmap icons
 //  - Flag /system/status di Firebase untuk Flutter
+//  - Offline → paksa mode Otomatis
+//  - lastOnline dikirim ke Firebase untuk deteksi offline di Flutter
 // ============================================================
 
 #include <BLEDevice.h>
@@ -63,6 +65,85 @@ const int nilaiBasah        = 4095;
 const int MAX_DURASI_MENIT  = 60;
 
 // ============================================================
+//  BITMAP ICONS 16x16
+// ============================================================
+const unsigned char wifi_icon [] PROGMEM = {
+        0x00, 0x00,
+        0x03, 0xC0,
+        0x0F, 0xF0,
+        0x1C, 0x38,
+        0x30, 0x0C,
+        0x03, 0xC0,
+        0x07, 0xE0,
+        0x0C, 0x30,
+        0x01, 0x80,
+        0x03, 0xC0,
+        0x06, 0x60,
+        0x00, 0x00,
+        0x01, 0x80,
+        0x01, 0x80,
+        0x00, 0x00,
+        0x00, 0x00
+};
+
+const unsigned char clock_icon [] PROGMEM = {
+        0x03, 0xC0,
+        0x0F, 0xF0,
+        0x1C, 0x38,
+        0x30, 0x0C,
+        0x60, 0x06,
+        0x66, 0x06,
+        0x63, 0x06,
+        0x60, 0x06,
+        0x60, 0x06,
+        0x70, 0x0E,
+        0x38, 0x1C,
+        0x1C, 0x38,
+        0x0F, 0xF0,
+        0x03, 0xC0,
+        0x00, 0x00,
+        0x00, 0x00
+};
+
+const unsigned char water_on[] PROGMEM = {
+        0x00, 0x00,
+        0x01, 0x80,
+        0x03, 0xC0,
+        0x07, 0xE0,
+        0x0F, 0xF0,
+        0x1F, 0xF8,
+        0x3F, 0xFC,
+        0x3F, 0xFC,
+        0x7F, 0xFE,
+        0x7F, 0xFE,
+        0x7F, 0xFE,
+        0x3F, 0xFC,
+        0x3F, 0xFC,
+        0x1F, 0xF8,
+        0x0F, 0xF0,
+        0x03, 0xC0
+};
+
+const unsigned char water_off[] PROGMEM = {
+        0x00, 0x00,
+        0x01, 0x80,
+        0x03, 0xC0,
+        0x07, 0xE0,
+        0x0C, 0x30,
+        0x18, 0x18,
+        0x30, 0x0C,
+        0x30, 0x0C,
+        0x60, 0x06,
+        0x60, 0x06,
+        0x60, 0x06,
+        0x30, 0x0C,
+        0x30, 0x0C,
+        0x18, 0x18,
+        0x0F, 0xF0,
+        0x03, 0xC0
+};
+
+// ============================================================
 //  STATE MACHINE
 // ============================================================
 enum SystemState { STATE_BLE, STATE_RUNNING };
@@ -80,13 +161,13 @@ bool blePaired          = false;
 //  VARIABEL WIFI & FIREBASE
 // ============================================================
 FirebaseData   fbdo;
-FirebaseData   fbdoWrite;  // Pisahkan objek untuk baca & tulis
+FirebaseData   fbdoWrite;
 FirebaseConfig fbConfig;
 FirebaseAuth   fbAuth;
 
 bool firebaseInited = false;
 bool ntpSynced      = false;
-bool systemReady    = false; // true setelah pairing BLE berhasil
+bool systemReady    = false;
 
 // ============================================================
 //  VARIABEL SENSOR & KONTROL
@@ -95,10 +176,6 @@ int    kelembapan     = 0;
 String statusTanah    = "";
 String statusTerakhir = "";
 
-// ============================================================
-//  PENTING: Gunakan string yang SAMA persis dengan Flutter
-//  Flutter kirim: "Otomatis", "Manual", "Jadwal"
-// ============================================================
 String modeControl   = "Otomatis";
 bool   pumpManualReq = false;
 
@@ -126,7 +203,9 @@ unsigned long prevOLED       = 0;
 unsigned long prevCekJadwal  = 0;
 unsigned long prevNTPRetry   = 0;
 unsigned long prevWiFiRetry  = 0;
+unsigned long prevBlink      = 0;
 int           wifiPercobaan  = 0;
+bool          blinkState     = false;
 
 // ============================================================
 //  OBJEK OLED
@@ -231,10 +310,8 @@ void bacaSensor() {
 }
 
 // ============================================================
-//  BACA FIREBASE — BATCH (1 request untuk /control, 1 untuk /schedule)
-//  FIX UTAMA: Dari 6 request sequential → 2 request JSON
+//  BACA FIREBASE — BATCH
 // ============================================================
-
 void bacaFirebase() {
   // Baca /control
   if (Firebase.getJSON(fbdo, "/control")) {
@@ -244,7 +321,7 @@ void bacaFirebase() {
     if (json.get(result, "pump"))  pumpManualReq = result.boolValue;
   }
 
-  // Baca /schedule/item — sesuai struktur Firebase aktual
+  // Baca /schedule/item per-field
   FirebaseData fbdoSched;
 
   if (Firebase.getString(fbdoSched, "/schedule/item/date")) {
@@ -253,9 +330,8 @@ void bacaFirebase() {
     Serial.println("[DEBUG] Gagal baca date: " + fbdoSched.errorReason());
   }
 
-  // time disimpan sebagai "HH:MM" — parse jam & menit
   if (Firebase.getString(fbdoSched, "/schedule/item/time")) {
-    String timeStr = fbdoSched.stringData(); // contoh: "02:16"
+    String timeStr = fbdoSched.stringData();
     int colonIdx = timeStr.indexOf(':');
     if (colonIdx > 0) {
       jadwal.jam   = timeStr.substring(0, colonIdx).toInt();
@@ -279,19 +355,19 @@ void bacaFirebase() {
                 jadwal.durasi);
 }
 
-
 // ============================================================
-//  KIRIM DATA KE FIREBASE — BATCH (1 request JSON)
-//  FIX UTAMA: Dari 6 request sequential → 1 request JSON
+//  KIRIM DATA KE FIREBASE — BATCH
 // ============================================================
 void kirimFirebase() {
   bool pompaOn = getPompaState();
 
-  // Hitung sisa durasi
-  int sisaDurasi = 0;
+  // Hitung sisa durasi dalam detik
+  long sisaDetik = 0;
   if (jadwalAktif) {
-    unsigned long elapsed = (millis() - jadwalMulaiMs) / 60000UL;
-    sisaDurasi = max((int)jadwal.durasi - (int)elapsed, 0);
+    unsigned long elapsedDetik = (millis() - jadwalMulaiMs) / 1000UL;
+    unsigned long totalDetik   = (unsigned long)jadwal.durasi * 60UL;
+    sisaDetik = (long)totalDetik - (long)elapsedDetik;
+    if (sisaDetik < 0) sisaDetik = 0;
   }
 
   // Kirim semua live data dalam 1 JSON update
@@ -301,9 +377,16 @@ void kirimFirebase() {
   liveJson.set("pump_state",   pompaOn);
   liveJson.set("mode_aktif",   jadwalAktif ? "Jadwal" : modeControl);
   liveJson.set("jadwal_aktif", jadwalAktif);
-  liveJson.set("sisa_durasi",  sisaDurasi);
+  liveJson.set("sisa_durasi",  (int)sisaDetik);
 
-  Firebase.updateNode(fbdoWrite, "/live", liveJson);  // updateNode = PATCH, tidak hapus field lain
+  // Tambah lastOnline dalam epoch milliseconds
+  struct tm timeinfo;
+  if (getLocalTime(&timeinfo)) {
+    time_t epoch = mktime(&timeinfo);
+    liveJson.set("lastOnline", (long long)epoch * 1000LL);
+  }
+
+  Firebase.updateNode(fbdoWrite, "/live", liveJson);
 
   // History hanya jika status berubah
   if (statusTanah != statusTerakhir) {
@@ -319,10 +402,8 @@ void kirimFirebase() {
 
 // ============================================================
 //  LOGIKA CEK JADWAL
-//  FIX: Cek dengan toleransi ±30 detik agar tidak melewati momen
 // ============================================================
 void cekJadwal() {
-  // Mode bukan Jadwal → batalkan
   if (modeControl != "Jadwal") {
     if (jadwalAktif) {
       jadwalAktif = false;
@@ -350,11 +431,9 @@ void cekJadwal() {
 
   if (tglSekarang != jadwal.tanggal) return;
 
-  // Hitung total menit saat ini dan jadwal untuk perbandingan yang lebih andal
   int menitSekarang = t.tm_hour * 60 + t.tm_min;
   int menitJadwal   = jadwal.jam  * 60 + jadwal.menit;
 
-  // Aktifkan jika belum aktif dan sudah waktunya (toleransi: tidak lewat lebih dari 1 menit)
   if (!jadwalAktif && menitSekarang == menitJadwal) {
     jadwalAktif   = true;
     jadwalMulaiMs = millis();
@@ -363,10 +442,10 @@ void cekJadwal() {
                   jadwal.jam, jadwal.menit, jadwal.durasi);
   }
 
-  // Matikan jika durasi habis
+  // Matikan jika durasi habis (dalam detik)
   if (jadwalAktif) {
-    unsigned long elapsedMenit = (millis() - jadwalMulaiMs) / 60000UL;
-    if (elapsedMenit >= (unsigned long)jadwal.durasi) {
+    unsigned long elapsedDetik = (millis() - jadwalMulaiMs) / 1000UL;
+    if (elapsedDetik >= (unsigned long)(jadwal.durasi * 60UL)) {
       jadwalAktif = false;
       setPompa(false);
       Serial.println("[JADWAL] Durasi selesai, pompa dimatikan.");
@@ -376,11 +455,18 @@ void cekJadwal() {
 
 // ============================================================
 //  LOGIKA KONTROL POMPA
-//  FIX: Gunakan string yang sama persis dengan Flutter
 // ============================================================
 void kontrolPompa() {
+  bool wifiOk = (WiFi.status() == WL_CONNECTED);
+
+  // Jika offline, paksa mode Otomatis
+  if (!wifiOk) {
+    if (kelembapan < 70) setPompa(true);
+    else                 setPompa(false);
+    return;
+  }
+
   if (modeControl == "Jadwal") {
-    // Jadwal: hanya cekJadwal() yang boleh nyalakan pompa
     if (!jadwalAktif) setPompa(false);
     return;
   }
@@ -390,7 +476,7 @@ void kontrolPompa() {
     return;
   }
 
-  // Mode Otomatis (string dari Flutter adalah "Otomatis")
+  // Mode Otomatis
   if (kelembapan < 70) setPompa(true);
   else                 setPompa(false);
 }
@@ -420,62 +506,120 @@ void oledBLE(bool connected) {
 
 // ============================================================
 //  OLED: TAMPILAN UTAMA
+//
+//  LAYOUT 128x64:
+//  ┌────────────────────────────────┐
+//  │ [wifi] OK   [clock] HH:MM     │  Y: 0–16
+//  ├────────────────────────────────┤
+//  │      75%       Lembap         │  Y: 18–38
+//  ├────────────────────────────────┤
+//  │ Mode: Otomatis                │  Y: 40–50
+//  ├────────────────────────────────┤
+//  │ [drop] Pompa ON / Sisa: Xdtk  │  Y: 53–64
+//  └────────────────────────────────┘
 // ============================================================
 void updateOLED() {
+  unsigned long now = millis();
+  bool wifiOk = (WiFi.status() == WL_CONNECTED);
+
+  // Efek kedip pompa setiap 500ms
+  if (now - prevBlink >= 500) {
+    prevBlink  = now;
+    blinkState = !blinkState;
+  }
+
   display.clearDisplay();
-  display.setTextSize(1);
   display.setTextColor(WHITE);
 
-  // Baris 1: WiFi
-  display.setCursor(0, 0);
-  bool wifiOk = (WiFi.status() == WL_CONNECTED);
-  display.print("WiFi: ");
+  // ----------------------------------------------------------
+  //  BARIS 1 — Ikon WiFi + status | Ikon Clock + jam
+  // ----------------------------------------------------------
+  display.drawBitmap(0, 0, wifi_icon, 16, 16, WHITE);
+  display.setTextSize(1);
+  display.setCursor(18, 4);
   display.print(wifiOk ? "OK" : "X");
 
-  // Baris 1 kanan: NTP
-  display.setCursor(60, 0);
-  display.print("NTP:");
-  display.print(ntpSynced ? "OK" : "X");
+  display.drawBitmap(50, 0, clock_icon, 16, 16, WHITE);
+  display.setCursor(68, 4);
+  if (ntpSynced) {
+    struct tm t;
+    if (getLocalTime(&t)) {
+      char jamBuf[6];
+      strftime(jamBuf, sizeof(jamBuf), "%H:%M", &t);
+      display.print(jamBuf);
+    } else {
+      display.print("--:--");
+    }
+  } else {
+    display.print("--:--");
+  }
 
-  display.drawFastHLine(0, 10, 128, WHITE);
+  display.drawFastHLine(0, 17, 128, WHITE);
 
-  // Kelembapan besar
+  // ----------------------------------------------------------
+  //  BARIS 2 — Nilai kelembapan besar + status tanah
+  // ----------------------------------------------------------
   display.setTextSize(2);
-  display.setCursor(25, 14);
+  display.setCursor(10, 20);
   display.print(kelembapan);
   display.print("%");
 
-  // Status tanah & Mode
   display.setTextSize(1);
-  display.setCursor(0, 34);
+  display.setCursor(75, 24);
   display.print(statusTanah);
-  display.setCursor(70, 34);
-  display.print("Mode:");
-  // Singkat: Oto/Man/Jdw
-  if      (modeControl == "Otomatis") display.print("Oto");
-  else if (modeControl == "Manual")   display.print("Man");
-  else if (modeControl == "Jadwal")   display.print("Jdw");
-  else                                display.print(modeControl.substring(0, 3));
 
-  display.drawFastHLine(0, 44, 128, WHITE);
+  display.drawFastHLine(0, 39, 128, WHITE);
 
-  // Pompa & Jadwal
-  display.setCursor(0, 50);
-  display.print("PUMP:");
-  display.print(getPompaState() ? "ON " : "OFF");
-  display.setCursor(55, 50);
-  if (jadwalAktif) {
-    unsigned long sisa = jadwal.durasi - ((millis() - jadwalMulaiMs) / 60000UL);
-    display.print("Sisa:");
-    display.print(sisa);
-    display.print("m");
-  } else if (!wifiOk) {
-    display.print("Coba#");
-    display.print(wifiPercobaan);
+  // ----------------------------------------------------------
+  //  BARIS 3 — Mode aktif
+  // ----------------------------------------------------------
+  display.setTextSize(1);
+  display.setCursor(0, 41);
+  display.print("Mode: ");
+  if (!wifiOk) {
+    display.print("Otomatis*");
+  } else if (modeControl == "Otomatis") {
+    display.print("Otomatis");
+  } else if (modeControl == "Manual") {
+    display.print("Manual");
+  } else if (modeControl == "Jadwal") {
+    display.print("Jadwal");
+  }
+
+  display.drawFastHLine(0, 52, 128, WHITE);
+
+  // ----------------------------------------------------------
+  //  BARIS 4 — Ikon pompa + status / sisa waktu
+  // ----------------------------------------------------------
+  bool pompaOn = getPompaState();
+
+  // Ikon berkedip saat pompa ON, outline saat OFF
+  if (pompaOn) {
+    display.drawBitmap(0, 53, blinkState ? water_on : water_off, 16, 16, WHITE);
   } else {
-    // Tampilkan jam jadwal jika mode Jadwal
-    if (modeControl == "Jadwal" && jadwal.jam >= 0) {
-      display.printf("%02d:%02d", jadwal.jam, jadwal.menit);
+    display.drawBitmap(0, 53, water_off, 16, 16, WHITE);
+  }
+
+  display.setCursor(20, 57);
+  if (pompaOn) {
+    if (jadwalAktif) {
+      unsigned long elapsedDetik = (millis() - jadwalMulaiMs) / 1000UL;
+      unsigned long totalDetik   = (unsigned long)jadwal.durasi * 60UL;
+      long sisaDetik = (long)totalDetik - (long)elapsedDetik;
+      if (sisaDetik < 0) sisaDetik = 0;
+      display.print("Sisa:");
+      display.print(sisaDetik);
+      display.print("dtk");
+    } else {
+      display.print("Pompa ON");
+    }
+  } else {
+    if (!wifiOk) {
+      display.print("Offline");
+    } else if (modeControl == "Jadwal" && jadwal.jam >= 0) {
+      display.printf("Jam %02d:%02d", jadwal.jam, jadwal.menit);
+    } else {
+      display.print("Pompa OFF");
     }
   }
 
@@ -502,47 +646,36 @@ void setup() {
   display.println("Sistem Memulai...");
   display.display();
 
-// Cek flag paired di Preferences
+  // Cek flag paired di Preferences
   prefs.begin("irigasi", true);
   bool sudahPaired = prefs.getBool("paired", false);
   prefs.end();
 
   if (sudahPaired) {
-    // Langsung STATE_RUNNING tanpa BLE
     Serial.println("[BOOT] Sudah pernah pairing — skip BLE.");
-    systemState = STATE_RUNNING;
-    modeControl = "Otomatis";
+    systemState   = STATE_RUNNING;
+    modeControl   = "Otomatis";
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     wifiPercobaan = 1;
     prevWiFiRetry = millis();
   } else {
-    // Belum pernah pairing — masuk STATE_BLE
     systemState = STATE_BLE;
     initBLE();
     Serial.println("[BOOT] Menunggu pairing BLE...");
   }
 }
 
-
 // ============================================================
 //  LOOP UTAMA
-//  Urutan prioritas:
-//  1. Baca sensor (cepat, tidak blocking)
-//  2. kontrolPompa() — SELALU dipanggil duluan agar responsif
-//  3. cekJadwal() — interval 3 detik
-//  4. Firebase baca (interval 3 detik, batch)
-//  5. Firebase tulis (interval 5 detik, batch)
-//  6. Update OLED (interval 300ms)
 // ============================================================
 void loop() {
   unsigned long now = millis();
 
-  // Tombol Boot → Restart
+  // Tombol Boot → hapus pairing & restart
   if (digitalRead(BOOT_PIN) == LOW) {
     delay(50);
     if (digitalRead(BOOT_PIN) == LOW) {
       Serial.println("[BOOT] Reset pairing & restart...");
-      // Hapus flag paired saat tombol Boot ditekan
       prefs.begin("irigasi", false);
       prefs.putBool("paired", false);
       prefs.end();
@@ -572,11 +705,17 @@ void loop() {
         delay(200);
       }
       Serial.println("[SYS] Pairing berhasil — matikan BLE, mulai sistem...");
+
+      // Simpan flag paired ke Preferences
+      prefs.begin("irigasi", false);
+      prefs.putBool("paired", true);
+      prefs.end();
+
       stopBLE();
 
-      systemState  = STATE_RUNNING;
-      modeControl  = "Otomatis";  // Default mode = Otomatis
-      systemReady  = true;
+      systemState = STATE_RUNNING;
+      modeControl = "Otomatis";
+      systemReady = true;
 
       WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
       wifiPercobaan = 1;
@@ -610,9 +749,6 @@ void loop() {
       Serial.printf("[NTP] Sync: %s\n", ntpSynced ? "Berhasil" : "Gagal");
       initFirebase();
 
-      // Tulis status sistem ke Firebase
-      // Jika systemReady = true (sudah pairing), tulis paired
-      // Jika false (boot tanpa pairing baru), tulis booting
       if (systemReady) {
         Firebase.setString(fbdoWrite, "/system/status", "ready");
       } else {
@@ -631,7 +767,7 @@ void loop() {
   }
 
   // ----------------------------------------------------------
-  //  1. BACA SENSOR (tiap 1 detik) — cepat, tidak blocking
+  //  1. BACA SENSOR tiap 1 detik
   // ----------------------------------------------------------
   if (now - prevReadSensor >= 1000) {
     prevReadSensor = now;
@@ -639,13 +775,12 @@ void loop() {
   }
 
   // ----------------------------------------------------------
-  //  2. KONTROL POMPA — PRIORITAS TINGGI, panggil SETIAP loop
-  //     Ini memastikan pompa segera merespons perubahan mode/manual
+  //  2. KONTROL POMPA — prioritas tinggi, setiap loop
   // ----------------------------------------------------------
   kontrolPompa();
 
   // ----------------------------------------------------------
-  //  3. CEK JADWAL tiap 3 detik (lebih sering dari sebelumnya)
+  //  3. CEK JADWAL tiap 3 detik
   // ----------------------------------------------------------
   if (now - prevCekJadwal >= 3000) {
     prevCekJadwal = now;
@@ -653,7 +788,7 @@ void loop() {
   }
 
   // ----------------------------------------------------------
-  //  4. BACA FIREBASE tiap 3 detik (batch JSON — jauh lebih cepat)
+  //  4. BACA FIREBASE tiap 3 detik
   // ----------------------------------------------------------
   if (wifiOk && (now - prevReadFB >= 3000)) {
     prevReadFB = now;
@@ -661,7 +796,7 @@ void loop() {
   }
 
   // ----------------------------------------------------------
-  //  5. KIRIM FIREBASE tiap 5 detik (batch JSON — jauh lebih cepat)
+  //  5. KIRIM FIREBASE tiap 5 detik
   // ----------------------------------------------------------
   if (wifiOk && (now - prevUpdateFB >= 5000)) {
     prevUpdateFB = now;
@@ -669,7 +804,7 @@ void loop() {
   }
 
   // ----------------------------------------------------------
-  //  6. UPDATE OLED tiap 300ms (lebih responsif dari 500ms)
+  //  6. UPDATE OLED tiap 300ms
   // ----------------------------------------------------------
   if (now - prevOLED >= 300) {
     prevOLED = now;
