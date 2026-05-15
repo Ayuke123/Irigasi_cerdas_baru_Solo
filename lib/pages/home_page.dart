@@ -54,6 +54,7 @@ class _DashboardPageState extends State<DashboardPage> {
   StreamSubscription<DatabaseEvent>? _pumpSub;
   StreamSubscription<DatabaseEvent>? _modeSub;
   StreamSubscription<DatabaseEvent>? _systemSub;
+  StreamSubscription<DatabaseEvent>? _offlineSub;
   StreamSubscription<DocumentSnapshot>? _weatherSub;
 
   String pumpStatus = "OFF";
@@ -65,6 +66,7 @@ class _DashboardPageState extends State<DashboardPage> {
   String suhu = "-";
   String lokasi = "-";
   String systemStatus = "booting"; // "ready" = ESP sudah pairing
+  bool espOffline = false;
 
   List<FlSpot> soilData = [];
 
@@ -87,6 +89,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _pumpSub?.cancel();
     _modeSub?.cancel();
     _systemSub?.cancel();
+    _offlineSub?.cancel();
     _weatherSub?.cancel();
 
     super.dispose();
@@ -221,6 +224,25 @@ class _DashboardPageState extends State<DashboardPage> {
         }
       });
     });
+
+    // =========================
+    // OFFLINE DETECTION
+    // =========================
+    _offlineSub?.cancel();
+
+    _offlineSub = dbRef.child('live/lastOnline').onValue.listen((event) {
+      if (!mounted) return;
+
+      if (!event.snapshot.exists || event.snapshot.value == null) {
+        setState(() => espOffline = true);
+        return;
+      }
+
+      int lastOnline = int.tryParse(event.snapshot.value.toString()) ?? 0;
+      int now = DateTime.now().millisecondsSinceEpoch;
+
+      setState(() => espOffline = (now - lastOnline) > 30000);
+    });
   }
 
   // ==============================
@@ -293,6 +315,33 @@ class _DashboardPageState extends State<DashboardPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // BANNER OFFLINE
+            if (espOffline)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade700,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.wifi_off, color: Colors.white),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "ESP32 Offline — Sistem berjalan dalam Mode Otomatis",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             // =========================
             // CONNECT DEVICE
             // =========================
@@ -541,9 +590,11 @@ class _DashboardPageState extends State<DashboardPage> {
                       children: [
                         Expanded(
                           child: GestureDetector(
-                            onTap: () {
-                              dbRef.child('control/mode').set("Otomatis");
-                            },
+                            onTap: espOffline
+                                ? null
+                                : () {
+                                    dbRef.child('control/mode').set("Otomatis");
+                                  },
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 vertical: 12,
@@ -571,9 +622,11 @@ class _DashboardPageState extends State<DashboardPage> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: GestureDetector(
-                            onTap: () {
-                              dbRef.child('control/mode').set("Manual");
-                            },
+                            onTap: espOffline
+                                ? null
+                                : () {
+                                    dbRef.child('control/mode').set("Manual");
+                                  },
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 vertical: 12,
@@ -601,16 +654,18 @@ class _DashboardPageState extends State<DashboardPage> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: GestureDetector(
-                            onTap: () {
-                              dbRef.child('control/mode').set("Jadwal");
-
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const SchedulePage(),
-                                ),
-                              );
-                            },
+                            onTap: espOffline
+                                ? null
+                                : () {
+                                    dbRef.child('control/mode').set("Jadwal");
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const SchedulePage(),
+                                      ),
+                                    );
+                                  },
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 vertical: 12,
@@ -646,17 +701,21 @@ class _DashboardPageState extends State<DashboardPage> {
                       SizedBox(
                         width: double.infinity,
                         child: InkWell(
-                          onTap: () async {
-                            final newValue = !pumpValue;
+                          onTap: espOffline
+                              ? null
+                              : () async {
+                                  final newValue = !pumpValue;
 
-                            await dbRef.child('control/pump').set(newValue);
+                                  await dbRef
+                                      .child('control/pump')
+                                      .set(newValue);
 
-                            if (!mounted) return;
+                                  if (!mounted) return;
 
-                            setState(() {
-                              pumpValue = newValue;
-                            });
-                          },
+                                  setState(() {
+                                    pumpValue = newValue;
+                                  });
+                                },
                           child: Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
